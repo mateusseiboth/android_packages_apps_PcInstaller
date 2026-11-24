@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Privileged permissions of PcInstaller (system_ext priv-app). -->
+<permissions>
+    <privapp-permissions package="org.lineageos.pcinstaller">
+        <permission name="android.permission.REBOOT" />
+    </privapp-permissions>
+</permissions>

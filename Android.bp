@@ -52,5 +52,15 @@ android_app {
         optimize: true,
         shrink_resources: true,
     },
-    required: ["pc-installd"],
+    required: [
+        "pc-installd",
+        "privapp-permissions-pcinstaller.xml",
+    ],
+}
+
+prebuilt_etc {
+    name: "privapp-permissions-pcinstaller.xml",
+    src: "etc/privapp-permissions-pcinstaller.xml",
+    sub_dir: "permissions",
+    system_ext_specific: true,
 }
