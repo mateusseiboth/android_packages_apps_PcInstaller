@@ -12,5 +12,8 @@
 - GRUB menus: every install owns `entries/<id>.cfg` in every menu directory (`bootmenu.c`, `menus.c`); never write
   a whole grub.cfg for one install. Tests run menus through `grub2-script-check`; `tools/bios_boot_test.sh` boots
   the BIOS code in QEMU (128 MiB).
+- Secure Boot (README, "Secure Boot"): never assume a key; the `.der` always comes from the live source (each
+  builder signs with their own). EFI/BOOT is ours only when it holds our GRUB, never because BOOTX64.EFI is shim.
+  Randomness goes through `sys_ops.fill_random` so tests stay deterministic.
 - Protocol changes: update `installd/src/server.c`, `core/.../InstallerClient.kt` and the README table together.
 - Commits: no AI attribution lines.

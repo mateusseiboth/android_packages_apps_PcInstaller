@@ -31,9 +31,14 @@ the device tree only adds both to `PRODUCT_PACKAGES`.
     system.old.img / system.old/ the previous system, after an update
 
 UEFI
-<ESP>/EFI/LineageOS/grubx64.efi  GRUB built by build_iso.py (prefix /EFI/LineageOS)
-<ESP>/EFI/BOOT/BOOTX64.EFI       the same GRUB, only when the file did not exist
-Boot#### + BootOrder             UEFI entry "LineageOS" first in the boot order (reused on reinstall)
+<ESP>/EFI/LineageOS/shimx64.efi  shim, signed by Microsoft (from the live ISO)
+<ESP>/EFI/LineageOS/mmx64.efi    MokManager, which shim starts to enroll a key
+<ESP>/EFI/LineageOS/grubx64.efi  GRUB built by build_iso.py (prefix /EFI/LineageOS), signed with the builder's key
+<ESP>/EFI/LineageOS/ENROLL_THIS_KEY_IN_MOKMANAGER.der  the builder's public key, for MokManager
+<ESP>/EFI/BOOT/{BOOTX64.EFI,grubx64.efi,mmx64.efi}  shim as BOOTX64.EFI with GRUB and MokManager next to it,
+                                 only when BOOTX64.EFI did not exist or is ours (see below)
+Boot#### + BootOrder             UEFI entry "LineageOS" starting shimx64.efi, first in the boot order (reused on
+                                 reinstall; the older entry that started grubx64.efi directly is removed)
 
 BIOS
 sector 0 of the target disk      GRUB's boot.img; partition table and disk id kept, old boot code saved
@@ -47,6 +52,10 @@ Every menu directory (EFI/LineageOS, pc-grub)
                                  and the previous system (pc.previous=1)
     grub.cfg                     rebuilt from all entries + the other systems found + (UEFI) firmware settings
 ```
+
+**The fallback path is ours** when EFI/BOOT holds our GRUB: `EFI/BOOT/grubx64.efi`, or (installs from before
+shim) `BOOTX64.EFI` itself, identical to `EFI/LineageOS/grubx64.efi`. Never by shim alone: other systems put the
+very same Microsoft-signed shim there. Ours is replaced on every install and removed with the last menu.
 
 **One menu for every install.** An install adds its `entries/<id>.cfg` to every menu directory on the
 computer and rebuilds each `grub.cfg`, so whichever GRUB starts lists every install; an update replaces only
@@ -81,8 +90,8 @@ loglevel=4 pc.src=<folder> pc.id=<id> quiet`.
 Android's root and switches root, which hides `/mnt/src`. pc-installd reads `pc.live=1` and `pc.src=` from
 `/proc/cmdline`, takes the device of `/` from `/proc/self/mountinfo` (a loop device), asks the loop device for
 its backing device (`LOOP_GET_STATUS64`) and mounts that partition again, read-only, at `/mnt/pc-installd/src`.
-The ISO must hold `<folder>/{kernel,initrd.img,system.img,grubx64.efi,install-live.id}` and
-`<folder>/grub-pc/{boot.img,core.img,i386-pc/}`.
+The ISO must hold `<folder>/{kernel,initrd.img,system.img,grubx64.efi,shimx64.efi,mmx64.efi,
+ENROLL_THIS_KEY_IN_MOKMANAGER.der,install-live.id}` and `<folder>/grub-pc/{boot.img,core.img,i386-pc/}`.
 
 **Installed system.** `pc.src=` and `pc.id=` come from `/proc/cmdline`; the install's partition is the device
 behind `/` (through its loop device for `system.img`). A live USB drive is any other partition holding
@@ -94,7 +103,28 @@ Android does not mount efivarfs; pc-installd mounts it on `/sys/firmware/efi/efi
 `SecureBoot` or writing boot entries. A partition that cannot be mounted read-only to measure its free space
 (Windows hibernated or with Fast Startup) is listed with `reason=mount_failed`.
 
-## Protocol (version 2)
+## Secure Boot
+
+The computer starts shim (signed by Microsoft, trusted by every Secure Boot firmware), shim starts our GRUB and
+GRUB the kernel, both signed with the key of whoever built the ISO. shim trusts that key once it is enrolled as a
+Machine Owner Key (MOK). The installer never assumes a key: it copies `ENROLL_THIS_KEY_IN_MOKMANAGER.der` from the
+live source and compares that file with what shim trusts.
+
+- **Already enrolled** (the live USB drive started with Secure Boot on, so the key was enrolled on this computer):
+  nothing to do. pc-installd reads `MokListRT`, `MokListRT1`... (shim's runtime copy of its key list) and the
+  firmware's `db`.
+- **Not enrolled:** the app offers to prepare the key. `ENROLL_KEY` does what `mokutil --import` does: it writes
+  `MokNew` (an X.509 `EFI_SIGNATURE_LIST` owned by shim, appended to a pending request) and `MokAuth` (SHA-256 of
+  `MokNew` followed by the password in UTF-16LE) under shim's GUID `605dab50-e046-4300-abb6-3dd810dd8b23`. At the
+  next start MokManager asks to enroll it: press a key, Enroll MOK, Continue, Yes, the password, Reboot. The
+  password is eight random digits, because MokManager reads a US keyboard.
+- **Without the app:** with Secure Boot on and the key missing, shim cannot verify GRUB and opens MokManager;
+  choose "Enroll key from disk" and pick `ENROLL_THIS_KEY_IN_MOKMANAGER.der` (on the ESP in `EFI/LineageOS`, or on
+  the live USB drive).
+
+With Secure Boot off, shim starts GRUB without checking, so the same files work either way.
+
+## Protocol (version 3)
 
 Unix stream socket `/dev/socket/pc_installd` (0660 root:system); only uid 0 and 1000 are served, one client at
 a time. The app starts the service with `ctl.start pc_installd`.
@@ -105,13 +135,14 @@ data lines, then `OK` or `ERR code=<error>`.
 
 | Request | Data lines | Meaning |
 |---|---|---|
-| `INFO` | `INFO version=2 uefi= secure_boot= live= source= folder= kernel= initrd= system= installed= install_part= install_folder= install_system=image/folder install_version= install_build_utc=` | the live source (sizes in bytes) or the running install |
+| `INFO` | `INFO version=3 uefi= secure_boot= mok_enrolled= mok_queued= live= source= folder= kernel= initrd= system= installed= install_part= install_folder= install_system=image/folder install_version= install_build_utc=` | the live source (sizes in bytes) or the running install; `mok_enrolled`: shim trusts the source's key, `mok_queued`: MokManager will ask for it (both 0 without a source or UEFI) |
 | `LIST` | `PART name= disk= fs= label= size= free= esp= source= usable= reason= folders= max_file=` | one per partition or whole-disk file system; `reason` is an error code when `usable=0` |
 | `INSPECT part= folder=` | `STATE system= data= old=<bytes>` | what the folder already holds |
 | `CHECK part= folder= system=image/folder data=image/folder/keep data_size=` | `PLAN mode=install/update need= free= boot=uefi/bios esp=` | validates without writing |
 | `INSTALL` (same fields as `CHECK`) | `PROGRESS step=prepare/kernel/system/data/boot/finish percent=0..100` | validates again, then installs or updates |
 | `UNINSTALL part= folder=` | `PROGRESS step=prepare/remove/boot/finish percent=` | removes the install and its menu entries |
-| `FIND_UPDATE` | `UPDATE source= version= build_utc= current_version= current_utc= newer=0/1` | installed system: finds a live USB drive and makes it the source of the next `INSTALL` |
+| `FIND_UPDATE` | `UPDATE source= version= build_utc= current_version= current_utc= newer=0/1 mok_enrolled= mok_queued=` | installed system: finds a live USB drive and makes it the source of the next `INSTALL` |
+| `ENROLL_KEY` | `MOK password=<8 digits>` | queues the source's key for MokManager (`source_missing` without it, `efi_failed` when the variables cannot be written) |
 
 ### Errors
 
@@ -125,8 +156,8 @@ data lines, then `OK` or `ERR code=<error>`.
 ## Tests
 
 ```sh
-make -C installd test          # 116 C checks (fake sysfs/dev/efivars machine) + socket and cmdline tests (Python)
-core/run_tests.sh              # 38 JUnit tests of the app core, with external/kotlinc and JUnit from prebuilts
+make -C installd test          # 136 C tests (fake sysfs/dev/efivars machine) + socket and cmdline tests (Python)
+core/run_tests.sh              # 44 JUnit tests of the app core, with external/kotlinc and JUnit from prebuilts
 python3 -m unittest discover -s tests   # UI strings: both languages, placeholders, no em dash
 tools/typecheck.sh             # compiles core + Compose UI against the prebuilts (needs a previous build's out/)
 tools/bios_boot_test.sh        # boots GRUB for BIOS written by biosboot.c in QEMU/SeaBIOS (three disk layouts)
@@ -142,13 +173,11 @@ time. In Soong: `PcInstallerCoreTests` (`java_test_host`, `atest`-able).
 - local manifest: `<project path="packages/apps/PcInstaller" name="android_packages_apps_PcInstaller" remote="pc" revision="lineage-24.0" />`
 - `device.mk`: `PRODUCT_PACKAGES += PcInstaller pc-installd`
 - `BoardConfig.mk`: `SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += packages/apps/PcInstaller/installd/sepolicy/private`
-- the device tree's `iso/build_iso.py` puts `grubx64.efi`, `grub-pc/` and `install-live.id` on the ISO
+- the device tree's `iso/build_iso.py` puts `grubx64.efi`, `shimx64.efi`, `mmx64.efi`,
+  `ENROLL_THIS_KEY_IN_MOKMANAGER.der`, `grub-pc/` and `install-live.id` on the ISO
 
 ## Limits
 
-- **Secure Boot.** The GRUB we ship is not signed by a key the firmware trusts, and only Microsoft or a
-  distribution's shim key could make it so. The installer reads the `SecureBoot` variable and tells the user
-  to turn it off before restarting.
 - **SELinux.** `pc_installd` is a permissive domain without allow rules: AOSP's neverallows forbid a
   coredomain from mounting file systems, writing raw block devices and relabeling every file type, all of
   which the installer must do. An enforcing build needs a vendor-side helper domain.
@@ -162,5 +191,8 @@ time. In Soong: `PcInstallerCoreTests` (`java_test_host`, `atest`-able).
 - [BlissOS](https://blissos.org) ([GitHub](https://github.com/BlissOS)) and the [Android-Generic Project](https://github.com/android-generic): the approach to running Android on PCs that this project follows. Its installer, [aaropa](https://github.com/BlissOS/bootable_aaropa), inspired the install layout (no code is shared).
 - [Android-x86](https://www.android-x86.org): the original Android-on-PC work, including installing into a folder and booting through GRUB. Its `newinstaller` defined the folder install this follows.
 - [GRUB](https://www.gnu.org/software/grub/): the boot loader the installer sets up.
+- [shim](https://github.com/rhboot/shim) and its MokManager (Fedora's Microsoft-signed build): Secure Boot with the builder's own key.
+- [mokutil](https://github.com/lcp/mokutil): the reference for the `MokNew`/`MokAuth` format `ENROLL_KEY` writes.
+- Icon: capybara artwork by Mateus Seiboth (art/installer-capybara.png).
 
 Thanks to everyone behind these projects. Files taken from them keep their original licenses and copyright notices.
