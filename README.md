@@ -107,3 +107,13 @@ In Soong: `PcInstallerCoreTests` (`java_test_host`, `atest`-able).
 - Several installs on one machine share `EFI/LineageOS/grub.cfg`; the last one wins.
 - The installer shows on an installed system too; it then says to start from the USB drive (`source_missing`).
 - Partitions inside LVM/RAID and file systems on whole disks without a partition table are not listed.
+
+## Credits
+
+- [LineageOS](https://lineageos.org) ([GitHub](https://github.com/LineageOS)): the base system and build this is part of.
+- [Android Open Source Project](https://source.android.com): the platform, its APIs and build system.
+- [BlissOS](https://blissos.org) ([GitHub](https://github.com/BlissOS)) and the [Android-Generic Project](https://github.com/android-generic): the approach to running Android on PCs that this project follows. Its installer, [aaropa](https://github.com/BlissOS/bootable_aaropa), inspired the install layout (no code is shared).
+- [Android-x86](https://www.android-x86.org): the original Android-on-PC work, including installing into a folder and booting through GRUB. Its `newinstaller` defined the folder install this follows.
+- [GRUB](https://www.gnu.org/software/grub/): the boot loader the installer sets up.
+
+Thanks to everyone behind these projects. Files taken from them keep their original licenses and copyright notices.
