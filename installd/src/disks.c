@@ -63,16 +63,21 @@ static void probe_partition(const struct sys_env *env, struct partition *p)
 	snprintf(p->label, sizeof p->label, "%s", fs.label);
 }
 
-static void read_esp_flag(const struct sys_env *env, struct partition *p)
+int read_part_table(const struct sys_env *env, const char *disk, struct part_table *t)
 {
 	static unsigned char head[PARTTABLE_HEAD_BYTES];
 	char path[PATH_MAX];
 	unsigned long long lbs = 512;
-	snprintf(path, sizeof path, "%s/class/block/%s/queue/logical_block_size", env->sysfs, p->disk);
+	snprintf(path, sizeof path, "%s/class/block/%s/queue/logical_block_size", env->sysfs, disk);
 	read_u64(path, &lbs);
+	int n = read_head(env, disk, head, sizeof head);
+	return n <= 0 ? -1 : parse_part_table(head, (size_t)n, (unsigned)lbs, t);
+}
+
+static void read_esp_flag(const struct sys_env *env, struct partition *p)
+{
 	struct part_table t;
-	int n = read_head(env, p->disk, head, sizeof head);
-	if (n <= 0 || parse_part_table(head, (size_t)n, (unsigned)lbs, &t))
+	if (read_part_table(env, p->disk, &t))
 		return;
 	for (int i = 0; i < t.count; i++)
 		p->is_esp |= t.entries[i].number == p->number && t.entries[i].is_esp;

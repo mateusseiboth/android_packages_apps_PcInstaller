@@ -18,13 +18,17 @@ static struct plan_request request(const char *system, const char *data, unsigne
 	return (struct plan_request){ .folder = "lineage", .system_form = system, .data_form = data, .data_size = data_size };
 }
 
+static const struct install_state FRESH;
+static const struct machine UEFI;
+
 static const char *check(struct plan_request r, struct partition p, struct install_state s)
 {
 	struct plan_result out;
-	return validate_plan(&r, &p, &SOURCE, &s, &out) ? out.error : "ok";
+	return validate_plan(&r, &p, &SOURCE, &s, &UEFI, &out) ? out.error : "ok";
 }
 
 static const struct install_state FRESH = { 0 };
+static const struct machine UEFI = { .is_uefi = 1, .has_esp = 1 };
 
 static void linux_file_systems_take_every_form(void)
 {
@@ -63,7 +67,7 @@ static void needs_room_for_everything_plus_a_margin(void)
 	unsigned long long need = SOURCE.kernel + SOURCE.initrd + SOURCE.system + 8 * GIB + PLAN_MARGIN;
 	struct plan_result out;
 	struct partition p = part("ext4", need);
-	CHECK(!validate_plan(&r, &p, &SOURCE, &FRESH, &out));
+	CHECK(!validate_plan(&r, &p, &SOURCE, &FRESH, &UEFI, &out));
 	CHECK(out.need == need);
 	CHECK_STR(check(r, part("ext4", need - 1), FRESH), "no_space");
 }
@@ -79,7 +83,7 @@ static void an_existing_install_is_updated_and_keeps_its_data(void)
 	struct plan_result out;
 	struct plan_request r = request("image", "keep", 0);
 	struct partition p = part("ext4", 100 * GIB);
-	CHECK(!validate_plan(&r, &p, &SOURCE, &old, &out));
+	CHECK(!validate_plan(&r, &p, &SOURCE, &old, &UEFI, &out));
 	CHECK_STR(out.mode, "update");
 	CHECK_STR(check(request("image", "image", 8 * GIB), p, old), "data_exists");
 	CHECK_STR(check(request("image", "keep", 0), p, FRESH), "no_data_to_keep");
@@ -97,7 +101,7 @@ static void a_fresh_install_says_install(void)
 	struct plan_result out;
 	struct plan_request r = request("folder", "folder", 0);
 	struct partition p = part("ext4", 100 * GIB);
-	CHECK(!validate_plan(&r, &p, &SOURCE, &FRESH, &out));
+	CHECK(!validate_plan(&r, &p, &SOURCE, &FRESH, &UEFI, &out));
 	CHECK_STR(out.mode, "install");
 }
 
@@ -129,8 +133,21 @@ static void every_file_system_has_a_rule(void)
 	CHECK_STR(find_fs_rule("never-heard-of-it")->reason, "fs_unsupported");
 }
 
+static void needs_a_uefi_boot_and_an_esp(void)
+{
+	struct plan_request r = request("image", "image", 8 * GIB);
+	struct partition p = part("ext4", 100 * GIB);
+	struct plan_result out;
+	struct machine bios = { .is_uefi = 0, .has_esp = 1 }, no_esp = { .is_uefi = 1, .has_esp = 0 };
+	CHECK(validate_plan(&r, &p, &SOURCE, &FRESH, &bios, &out));
+	CHECK_STR(out.error, "not_uefi");
+	CHECK(validate_plan(&r, &p, &SOURCE, &FRESH, &no_esp, &out));
+	CHECK_STR(out.error, "no_esp");
+}
+
 int main(void)
 {
+	RUN(needs_a_uefi_boot_and_an_esp);
 	RUN(linux_file_systems_take_every_form);
 	RUN(windows_file_systems_take_only_images);
 	RUN(fat32_cannot_hold_files_of_4_gib);

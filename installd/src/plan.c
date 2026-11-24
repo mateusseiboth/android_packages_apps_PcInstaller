@@ -68,6 +68,7 @@ struct plan_ctx {
 	const struct partition *p;
 	const struct source_sizes *src;
 	const struct install_state *state;
+	const struct machine *m;
 	const struct fs_rule *rule;
 	unsigned long long need;
 };
@@ -80,6 +81,8 @@ static int is_one_of(const char *v, const char *const *set)
 	return 0;
 }
 
+static const char *check_uefi(const struct plan_ctx *c) { return c->m->is_uefi ? NULL : "not_uefi"; }
+static const char *check_esp(const struct plan_ctx *c) { return c->m->has_esp ? NULL : "no_esp"; }
 static const char *check_folder(const struct plan_ctx *c) { return is_valid_folder(c->r->folder) ? NULL : "bad_folder"; }
 static const char *check_source(const struct plan_ctx *c) { return c->p->is_source ? "source_partition" : NULL; }
 static const char *check_fs(const struct plan_ctx *c) { return c->rule->reason; }
@@ -135,8 +138,8 @@ static const char *check_space(const struct plan_ctx *c)
 }
 
 static const char *(*const CHECKS[])(const struct plan_ctx *) = {
-	check_folder,	   check_source,	check_fs,	 check_forms,	   check_folders_allowed,
-	check_existing_data, check_data_size, check_file_limit, check_space,
+	check_uefi,	     check_esp,	      check_folder,	check_source, check_fs,	  check_forms,
+	check_folders_allowed, check_existing_data, check_data_size, check_file_limit, check_space,
 };
 
 static unsigned long long find_need(const struct plan_request *r, const struct source_sizes *src)
@@ -146,9 +149,9 @@ static unsigned long long find_need(const struct plan_request *r, const struct s
 }
 
 int validate_plan(const struct plan_request *r, const struct partition *p, const struct source_sizes *src,
-		  const struct install_state *state, struct plan_result *out)
+		  const struct install_state *state, const struct machine *m, struct plan_result *out)
 {
-	struct plan_ctx c = { r, p, src, state, find_fs_rule(p->fs), find_need(r, src) };
+	struct plan_ctx c = { r, p, src, state, m, find_fs_rule(p->fs), find_need(r, src) };
 	*out = (struct plan_result){ .mode = state->has_system ? "update" : "install", .need = c.need };
 	for (size_t i = 0; i < sizeof CHECKS / sizeof *CHECKS; i++) {
 		out->error = CHECKS[i](&c);

@@ -24,3 +24,9 @@ struct install_state {
 	int has_data;
 	unsigned long long old_system_bytes; /* system.old.img or system.old/, removed by an update */
 };
+
+/* How this computer boots. */
+struct machine {
+	int is_uefi; /* the live system was started by UEFI firmware (efivarfs is there) */
+	int has_esp;
+};

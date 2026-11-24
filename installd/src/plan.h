@@ -33,4 +33,4 @@ const char *find_mount_type(const char *fs);
 int is_valid_folder(const char *folder);
 /* 0 when the plan can run; else -1 with out->error set. */
 int validate_plan(const struct plan_request *r, const struct partition *p, const struct source_sizes *src,
-		  const struct install_state *state, struct plan_result *out);
+		  const struct install_state *state, const struct machine *m, struct plan_result *out);
