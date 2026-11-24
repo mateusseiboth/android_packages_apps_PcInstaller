@@ -26,6 +26,11 @@ class InstallerClient(private val transport: Transport) {
     fun install(plan: InstallPlan, onProgress: (InstallStep, Int) -> Unit): DaemonResult<Unit> =
         request("INSTALL", *plan.fields(), onLine = { m -> m.reportProgress(onProgress) }) { }
 
+    fun uninstall(partition: String, folder: String, onProgress: (InstallStep, Int) -> Unit): DaemonResult<Unit> =
+        request("UNINSTALL", "part" to partition, "folder" to folder, onLine = { m -> m.reportProgress(onProgress) }) { }
+
+    fun findUpdate(): DaemonResult<UpdateInfo> = request("FIND_UPDATE") { lines -> lines.single("UPDATE").toUpdateInfo() }
+
     private fun <T> request(
         word: String,
         vararg fields: Pair<String, Any>,
@@ -66,6 +71,17 @@ private fun Message.reportProgress(onProgress: (InstallStep, Int) -> Unit) {
 private fun Message.toSourceInfo() = SourceInfo(
     uefi = flag("uefi"), live = flag("live"), folder = this["folder"].orEmpty(),
     kernel = long("kernel"), initrd = long("initrd"), system = long("system"),
+    installed = toRunningInstall().takeIf { flag("installed") },
+    secureBoot = flag("secure_boot"),
+)
+
+private fun Message.toRunningInstall() = RunningInstall(
+    this["install_part"].orEmpty(), this["install_folder"].orEmpty(), SystemForm.fromWire(this["install_system"]),
+    this["install_version"].orEmpty(),
+)
+
+private fun Message.toUpdateInfo() = UpdateInfo(
+    this["source"].orEmpty(), this["version"].orEmpty(), this["current_version"].orEmpty(), flag("newer"),
 )
 
 private fun Message.toPartition() = Partition(
@@ -77,4 +93,4 @@ private fun Message.toPartition() = Partition(
 
 private fun Message.toInstallState() = InstallState(flag("system"), flag("data"), long("old"))
 
-private fun Message.toPlanCheck() = PlanCheck(this["mode"] == "update", long("need"), long("free"), this["esp"].orEmpty())
+private fun Message.toPlanCheck() = PlanCheck(this["mode"] == "update", long("need"), long("free"), this["boot"] == "uefi")

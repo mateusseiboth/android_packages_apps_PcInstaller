@@ -170,8 +170,20 @@ static void removing_drops_our_entries_and_keeps_the_others(void)
 	remove_dir();
 }
 
+static void reads_whether_secure_boot_is_on(void)
+{
+	make_dir();
+	CHECK(!is_secure_boot_on(dir));
+	put_var("SecureBoot", "\x00", 1);
+	CHECK(!is_secure_boot_on(dir));
+	put_var("SecureBoot", "\x01", 1);
+	CHECK(is_secure_boot_on(dir));
+	remove_dir();
+}
+
 int main(void)
 {
+	RUN(reads_whether_secure_boot_is_on);
 	RUN(removing_drops_our_entries_and_keeps_the_others);
 	RUN(encodes_an_active_load_option);
 	RUN(a_small_buffer_gives_zero);

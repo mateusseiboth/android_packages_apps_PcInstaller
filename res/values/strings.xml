@@ -43,7 +43,7 @@
     <string name="summary_data">Data</string>
     <string name="summary_space">Space used</string>
     <string name="summary_keep_files">Your files on this partition will not be erased.</string>
-    <string name="summary_boot">The computer will start LineageOS from now on. To use another system, pick it in the computer\'s boot menu.</string>
+    <string name="summary_boot">When the computer starts, a menu lets you choose LineageOS or another system.</string>
     <string name="install">Install</string>
     <string name="update">Update</string>
 
@@ -71,7 +71,6 @@
     <string name="error_fs_images_only">On NTFS, exFAT and FAT32 only image files can be used.</string>
     <string name="error_file_too_large">On FAT32 each file must be smaller than 4 GB. Choose less space for data.</string>
     <string name="error_data_too_small">The space for data must be at least 2 GB.</string>
-    <string name="error_not_uefi">This computer started in legacy (BIOS) mode. Restart and boot the USB drive in UEFI mode.</string>
     <string name="error_no_esp">No EFI partition was found. Install on a disk that has one.</string>
     <string name="error_source_missing">Open the installer from the LineageOS USB drive.</string>
     <string name="error_unknown_partition">The partition is gone. Try again.</string>
@@ -83,4 +82,37 @@
     <string name="error_io_error">Writing to the disk failed. Try again.</string>
     <string name="error_daemon_unreachable">The installer service did not answer. Try again.</string>
     <string name="error_unknown">Something went wrong. Try again.</string>
+
+    <string name="update_title">Update LineageOS</string>
+    <string name="update_body">Plug in the USB drive with the new version of LineageOS, then search for it.</string>
+    <string name="update_current">Installed version: %1$s</string>
+    <string name="update_search">Search for an update</string>
+    <string name="update_found_title">Update found</string>
+    <string name="update_installed_label">Installed version</string>
+    <string name="update_new_label">New version</string>
+    <string name="update_keeps_data">Your apps and data are kept.</string>
+    <string name="update_not_newer">This USB drive does not have a newer version.</string>
+    <string name="update_search_again">Search again</string>
+    <string name="uninstall">Remove this LineageOS</string>
+    <string name="uninstall_title">Remove LineageOS?</string>
+    <string name="uninstall_body">The apps and data of this install will be erased. Other files on the partition stay.</string>
+    <string name="uninstall_confirm">Remove</string>
+    <string name="cancel">Cancel</string>
+    <string name="updating_title">Updating…</string>
+    <string name="removing_title">Removing…</string>
+    <string name="step_remove">Removing the files</string>
+    <string name="removed_title">LineageOS was removed</string>
+    <string name="removed_body">You can restart the computer now.</string>
+    <string name="updated_title">LineageOS is updated</string>
+    <string name="updated_body">Restart the computer to use the new version.</string>
+    <string name="summary_bios">If the computer has more than one disk, set it to start from this one.</string>
+    <string name="error_lvm">LineageOS cannot read LVM volumes. Choose another partition.</string>
+    <string name="error_raid">LineageOS cannot read RAID partitions. Choose another partition.</string>
+    <string name="error_no_boot_room">This disk has no free space before its first partition to start LineageOS. Leave 1 MB free there, or choose another disk.</string>
+    <string name="error_boot_failed">The startup code could not be written to the disk. Try again.</string>
+    <string name="error_menu_failed">The startup menu could not be updated. Try again.</string>
+    <string name="error_not_installed">There is no LineageOS in this folder.</string>
+    <string name="error_running_system">This is the LineageOS in use. To remove it, start from the USB drive.</string>
+    <string name="error_no_update_source">No LineageOS USB drive was found. Plug it in and try again.</string>
+    <string name="secure_boot">Secure Boot is on. Turn it off in the computer\'s firmware settings so LineageOS can start.</string>
 </resources>

@@ -234,6 +234,14 @@ static void reads_what_an_install_folder_holds(void)
 	fake_teardown();
 }
 
+/* GRUB's own parser accepts the menu (when grub2-script-check is installed). */
+static int is_valid_grub_script(const char *rel)
+{
+	char cmd[512];
+	snprintf(cmd, sizeof cmd, "command -v grub2-script-check >/dev/null || exit 0; grub2-script-check %s", fake_path(rel));
+	return !system(cmd);
+}
+
 static void every_install_is_in_the_one_menu(void)
 {
 	setup_machine();
@@ -244,6 +252,7 @@ static void every_install_is_in_the_one_menu(void)
 	CHECK(strstr(text, "--file /lineage/install-aaaa.id") != NULL);
 	CHECK(strstr(text, "--file /lineage2/install-bbbb.id") != NULL);
 	CHECK(strstr(text, "set default=lineage-bbbb\n") != NULL);
+	CHECK(is_valid_grub_script("mnt-sda1/EFI/LineageOS/grub.cfg"));
 	fake_teardown();
 }
 
@@ -260,6 +269,7 @@ static void the_menu_offers_the_other_systems(void)
 	CHECK(strstr(text, "chainloader /EFI/fedora/shimx64.efi") != NULL);
 	CHECK(!strstr(text, "chainloader /EFI/LineageOS"));
 	CHECK(strstr(text, "fwsetup") != NULL);
+	CHECK(is_valid_grub_script("mnt-sda1/EFI/LineageOS/grub.cfg"));
 	fake_teardown();
 }
 
@@ -282,6 +292,7 @@ static void a_bios_computer_gets_grub_in_the_disk_gap(void)
 	CHECK(strstr(text, "menuentry \"Windows (sda2)\"") != NULL);
 	CHECK(strstr(text, "chainloader +1") != NULL);
 	CHECK(!strstr(text, "fwsetup") && !strstr(text, "aaaa-bbbb"));
+	CHECK(is_valid_grub_script("mnt-sda3/pc-grub/grub.cfg"));
 	CHECK(fake_efivars_mounts == 0 && !exists("mnt-sda1/EFI/LineageOS"));
 	fake_teardown();
 }

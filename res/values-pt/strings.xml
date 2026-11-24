@@ -42,7 +42,7 @@
     <string name="summary_data">Dados</string>
     <string name="summary_space">Espaço usado</string>
     <string name="summary_keep_files">Seus arquivos nesta partição não serão apagados.</string>
-    <string name="summary_boot">O computador passará a abrir o LineageOS. Para usar outro sistema, escolha-o no menu de inicialização do computador.</string>
+    <string name="summary_boot">Ao ligar, o computador mostra um menu para escolher o LineageOS ou outro sistema.</string>
     <string name="install">Instalar</string>
     <string name="update">Atualizar</string>
 
@@ -70,7 +70,6 @@
     <string name="error_fs_images_only">Em NTFS, exFAT e FAT32 só é possível usar arquivos de imagem.</string>
     <string name="error_file_too_large">Em FAT32 cada arquivo precisa ter menos de 4 GB. Escolha menos espaço para dados.</string>
     <string name="error_data_too_small">O espaço para dados precisa ter pelo menos 2 GB.</string>
-    <string name="error_not_uefi">Este computador iniciou no modo legado (BIOS). Reinicie e abra o pendrive no modo UEFI.</string>
     <string name="error_no_esp">Nenhuma partição EFI foi encontrada. Instale num disco que tenha uma.</string>
     <string name="error_source_missing">Abra o instalador a partir do pendrive do LineageOS.</string>
     <string name="error_unknown_partition">A partição não foi encontrada. Tente de novo.</string>
@@ -82,4 +81,37 @@
     <string name="error_io_error">A gravação no disco falhou. Tente de novo.</string>
     <string name="error_daemon_unreachable">O serviço de instalação não respondeu. Tente de novo.</string>
     <string name="error_unknown">Algo deu errado. Tente de novo.</string>
+
+    <string name="update_title">Atualizar o LineageOS</string>
+    <string name="update_body">Conecte o pendrive com a nova versão do LineageOS e procure por ela.</string>
+    <string name="update_current">Versão instalada: %1$s</string>
+    <string name="update_search">Procurar atualização</string>
+    <string name="update_found_title">Atualização encontrada</string>
+    <string name="update_installed_label">Versão instalada</string>
+    <string name="update_new_label">Nova versão</string>
+    <string name="update_keeps_data">Seus apps e dados serão mantidos.</string>
+    <string name="update_not_newer">Este pendrive não tem uma versão mais nova.</string>
+    <string name="update_search_again">Procurar de novo</string>
+    <string name="uninstall">Remover este LineageOS</string>
+    <string name="uninstall_title">Remover o LineageOS?</string>
+    <string name="uninstall_body">Os apps e dados desta instalação serão apagados. Os outros arquivos da partição continuam.</string>
+    <string name="uninstall_confirm">Remover</string>
+    <string name="cancel">Cancelar</string>
+    <string name="updating_title">Atualizando…</string>
+    <string name="removing_title">Removendo…</string>
+    <string name="step_remove">Removendo os arquivos</string>
+    <string name="removed_title">O LineageOS foi removido</string>
+    <string name="removed_body">Você já pode reiniciar o computador.</string>
+    <string name="updated_title">O LineageOS foi atualizado</string>
+    <string name="updated_body">Reinicie o computador para usar a nova versão.</string>
+    <string name="summary_bios">Se o computador tiver mais de um disco, ajuste-o para iniciar por este.</string>
+    <string name="error_lvm">O LineageOS não consegue ler volumes LVM. Escolha outra partição.</string>
+    <string name="error_raid">O LineageOS não consegue ler partições de RAID. Escolha outra partição.</string>
+    <string name="error_no_boot_room">Este disco não tem espaço livre antes da primeira partição para iniciar o LineageOS. Deixe 1 MB livre ali ou escolha outro disco.</string>
+    <string name="error_boot_failed">Não foi possível gravar a inicialização no disco. Tente de novo.</string>
+    <string name="error_menu_failed">Não foi possível atualizar o menu de inicialização. Tente de novo.</string>
+    <string name="error_not_installed">Não há um LineageOS nesta pasta.</string>
+    <string name="error_running_system">Este é o LineageOS em uso. Para removê-lo, inicie pelo pendrive.</string>
+    <string name="error_no_update_source">Nenhum pendrive do LineageOS foi encontrado. Conecte-o e tente de novo.</string>
+    <string name="secure_boot">A Inicialização Segura (Secure Boot) está ativada. Desative-a nas configurações do computador para o LineageOS iniciar.</string>
 </resources>

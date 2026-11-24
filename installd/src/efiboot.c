@@ -292,3 +292,10 @@ int remove_boot_entries(const char *dir, const char *description)
 		return -1;
 	return gone;
 }
+
+int is_secure_boot_on(const char *dir)
+{
+	uint8_t value[8];
+	size_t len = 0;
+	return !read_efi_var(dir, "SecureBoot", value, sizeof value, &len) && len >= 1 && value[0] == 1;
+}

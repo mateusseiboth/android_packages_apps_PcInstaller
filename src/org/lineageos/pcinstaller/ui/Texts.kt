@@ -13,14 +13,16 @@ object Texts {
     private val ERRORS = mapOf(
         InstallError.BITLOCKER to R.string.error_bitlocker,
         InstallError.ENCRYPTED to R.string.error_encrypted,
+        InstallError.LVM to R.string.error_lvm,
+        InstallError.RAID to R.string.error_raid,
         InstallError.FS_UNSUPPORTED to R.string.error_fs_unsupported,
         InstallError.SOURCE_PARTITION to R.string.error_source_partition,
         InstallError.NO_SPACE to R.string.error_no_space,
         InstallError.FS_IMAGES_ONLY to R.string.error_fs_images_only,
         InstallError.FILE_TOO_LARGE to R.string.error_file_too_large,
         InstallError.DATA_TOO_SMALL to R.string.error_data_too_small,
-        InstallError.NOT_UEFI to R.string.error_not_uefi,
         InstallError.NO_ESP to R.string.error_no_esp,
+        InstallError.NO_BOOT_ROOM to R.string.error_no_boot_room,
         InstallError.SOURCE_MISSING to R.string.error_source_missing,
         InstallError.UNKNOWN_PARTITION to R.string.error_unknown_partition,
         InstallError.MOUNT_FAILED to R.string.error_mount_failed,
@@ -29,6 +31,11 @@ object Texts {
         InstallError.ESP_FAILED to R.string.error_esp_failed,
         InstallError.EFI_FAILED to R.string.error_efi_failed,
         InstallError.IO_ERROR to R.string.error_io_error,
+        InstallError.BOOT_FAILED to R.string.error_boot_failed,
+        InstallError.MENU_FAILED to R.string.error_menu_failed,
+        InstallError.NOT_INSTALLED to R.string.error_not_installed,
+        InstallError.RUNNING_SYSTEM to R.string.error_running_system,
+        InstallError.NO_UPDATE_SOURCE to R.string.error_no_update_source,
         InstallError.DAEMON_UNREACHABLE to R.string.error_daemon_unreachable,
     )
 
@@ -38,6 +45,7 @@ object Texts {
         InstallStep.SYSTEM to R.string.step_system,
         InstallStep.DATA to R.string.step_data,
         InstallStep.BOOT to R.string.step_boot,
+        InstallStep.REMOVE to R.string.step_remove,
         InstallStep.FINISH to R.string.step_finish,
     )
 

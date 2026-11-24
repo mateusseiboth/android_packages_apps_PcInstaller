@@ -28,10 +28,47 @@ class InstallerClientTest {
     @Test
     fun readsTheLiveSource() {
         val t = ScriptedTransport(mapOf("INFO" to listOf(
-            "INFO version=1 uefi=1 live=1 source=sdb1 folder=lineage kernel=10 initrd=2 system=3221225472", "OK")))
+            "INFO version=2 uefi=1 live=1 source=sdb1 folder=lineage kernel=10 initrd=2 system=3221225472 installed=0 " +
+                "install_part= install_folder= install_system= install_version= install_build_utc=0", "OK")))
         val info = (InstallerClient(t).info() as DaemonResult.Ok).value
         assertEquals(SourceInfo(uefi = true, live = true, folder = "lineage", kernel = 10, initrd = 2,
             system = 3 * gib), info)
+        assertEquals(null, info.installed)
+    }
+
+    @Test
+    fun readsWhichInstallIsRunning() {
+        val t = ScriptedTransport(mapOf("INFO" to listOf(
+            "INFO version=2 uefi=0 live=0 source= folder= kernel=0 initrd=0 system=0 installed=1 install_part=sda3 " +
+                "install_folder=lineage install_system=folder install_version=24.0-old install_build_utc=100", "OK")))
+        val info = (InstallerClient(t).info() as DaemonResult.Ok).value
+        assertEquals(RunningInstall("sda3", "lineage", SystemForm.FOLDER, "24.0-old"), info.installed)
+        assertEquals(false, info.secureBoot)
+    }
+
+    @Test
+    fun readsWhetherSecureBootIsOn() {
+        val t = ScriptedTransport(mapOf("INFO" to listOf("INFO version=2 uefi=1 secure_boot=1 live=1 folder=lineage", "OK")))
+        assertEquals(true, (InstallerClient(t).info() as DaemonResult.Ok).value.secureBoot)
+    }
+
+    @Test
+    fun findsAnUpdateOnAUsbDrive() {
+        val t = ScriptedTransport(mapOf("FIND_UPDATE" to listOf(
+            "UPDATE source=sdb1 version=24.0-new build_utc=200 current_version=24.0-old current_utc=100 newer=1", "OK")))
+        assertEquals(DaemonResult.Ok(UpdateInfo("sdb1", "24.0-new", "24.0-old", isNewer = true)),
+            InstallerClient(t).findUpdate())
+        val none = ScriptedTransport(mapOf("FIND_UPDATE" to listOf("ERR code=no_update_source")))
+        assertEquals(DaemonResult.Failed(InstallError.NO_UPDATE_SOURCE), InstallerClient(none).findUpdate())
+    }
+
+    @Test
+    fun uninstallsWithProgress() {
+        val t = ScriptedTransport(mapOf("UNINSTALL" to listOf("PROGRESS step=remove percent=50", "OK")))
+        val seen = mutableListOf<Pair<InstallStep, Int>>()
+        assertEquals(DaemonResult.Ok(Unit), InstallerClient(t).uninstall("sda3", "lineage") { s, p -> seen += s to p })
+        assertEquals(listOf(InstallStep.REMOVE to 50), seen)
+        assertEquals("UNINSTALL part=sda3 folder=lineage\n", t.sent.single())
     }
 
     @Test
@@ -52,10 +89,10 @@ class InstallerClientTest {
 
     @Test
     fun sendsThePlanAndReadsTheCheck() {
-        val t = ScriptedTransport(mapOf("CHECK" to listOf("PLAN mode=update need=5 free=9 esp=sda1", "OK")))
+        val t = ScriptedTransport(mapOf("CHECK" to listOf("PLAN mode=update need=5 free=9 boot=uefi esp=sda1", "OK")))
         val plan = InstallPlan("sda3", "lineage", SystemForm.FOLDER, DataForm.KEEP, 0)
         val check = (InstallerClient(t).check(plan) as DaemonResult.Ok).value
-        assertEquals(PlanCheck(isUpdate = true, need = 5, free = 9, esp = "sda1"), check)
+        assertEquals(PlanCheck(isUpdate = true, need = 5, free = 9, isUefi = true), check)
         assertEquals("CHECK part=sda3 folder=lineage system=folder data=keep data_size=0\n", t.sent.single())
     }
 
@@ -76,6 +113,8 @@ class InstallerClientTest {
         val t = ScriptedTransport(mapOf("INSPECT" to listOf("ERR code=mount_failed")))
         assertEquals(DaemonResult.Failed(InstallError.MOUNT_FAILED), InstallerClient(t).inspect("sda3", "lineage"))
         assertEquals(InstallError.UNKNOWN, InstallError.fromCode("something_new"))
+        assertEquals(InstallError.NO_BOOT_ROOM, InstallError.fromCode("no_boot_room"))
+        assertEquals(InstallError.RAID, InstallError.fromCode("raid"))
     }
 
     @Test

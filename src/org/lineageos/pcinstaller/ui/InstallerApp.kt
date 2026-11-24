@@ -16,7 +16,7 @@ import org.lineageos.pcinstaller.InstallerViewModel
 import org.lineageos.pcinstaller.core.FlowState
 import org.lineageos.pcinstaller.core.Screen
 
-private val BACKABLE = setOf(Screen.PARTITIONS, Screen.FORMS, Screen.SUMMARY, Screen.FAILED)
+private val BACKABLE = setOf(Screen.PARTITIONS, Screen.FORMS, Screen.SUMMARY, Screen.FAILED, Screen.UPDATE_FOUND)
 
 @Composable
 private fun ScreenContent(screen: Screen, state: FlowState, busy: Boolean, actions: Actions) = when (screen) {
@@ -26,8 +26,10 @@ private fun ScreenContent(screen: Screen, state: FlowState, busy: Boolean, actio
     Screen.FORMS -> FormsScreen(state, busy, actions)
     Screen.SUMMARY -> SummaryScreen(state, busy, actions)
     Screen.INSTALLING -> InstallingScreen(state)
-    Screen.DONE -> DoneScreen(actions)
+    Screen.DONE, Screen.REMOVED -> DoneScreen(state, actions)
     Screen.FAILED -> FailedScreen(state, actions)
+    Screen.UPDATE_HOME -> UpdateHomeScreen(state, busy, actions)
+    Screen.UPDATE_FOUND -> UpdateFoundScreen(state, busy, actions)
 }
 
 @Composable
@@ -44,6 +46,10 @@ fun InstallerApp(viewModel: InstallerViewModel, onReboot: () -> Unit) {
         review = viewModel::review,
         install = viewModel::install,
         reboot = onReboot,
+        findUpdate = viewModel::findUpdate,
+        askUninstall = viewModel::askUninstall,
+        cancelUninstall = viewModel::cancelUninstall,
+        uninstall = viewModel::uninstall,
     )
     BackHandler(enabled = state.screen in BACKABLE) { viewModel.back() }
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {

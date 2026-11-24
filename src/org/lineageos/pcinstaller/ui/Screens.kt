@@ -17,17 +17,22 @@ import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
 import androidx.compose.material.icons.rounded.InstallDesktop
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Restore
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.TaskAlt
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Usb
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -47,6 +52,7 @@ import org.lineageos.pcinstaller.core.InstallError
 import org.lineageos.pcinstaller.core.InstallRules
 import org.lineageos.pcinstaller.core.Partition
 import org.lineageos.pcinstaller.core.SystemForm
+import org.lineageos.pcinstaller.core.Task
 
 /** What a screen can ask the view model to do. */
 class Actions(
@@ -59,6 +65,10 @@ class Actions(
     val review: () -> Unit,
     val install: () -> Unit,
     val reboot: () -> Unit,
+    val findUpdate: () -> Unit,
+    val askUninstall: () -> Unit,
+    val cancelUninstall: () -> Unit,
+    val uninstall: () -> Unit,
 )
 
 @Composable
@@ -217,8 +227,40 @@ fun FormsScreen(state: FlowState, busy: Boolean, actions: Actions) {
                 selected = state.data == form, allowed = form in dataForms) { actions.chooseData(form) }
         }
         if (state.data == DataForm.IMAGE) DataSizeSlider(state, actions)
+        if (existing.hasSystem) UninstallButton(busy, actions)
+        if (state.isConfirmingUninstall) UninstallDialog(actions)
         Gap()
     }
+}
+
+@Composable
+private fun UninstallButton(busy: Boolean, actions: Actions) {
+    OutlinedButton(
+        onClick = actions.askUninstall,
+        enabled = !busy,
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+        modifier = Modifier.padding(top = 8.dp),
+    ) {
+        Icon(Icons.Rounded.DeleteOutline, null)
+        Text(stringResource(R.string.uninstall), Modifier.padding(start = 8.dp))
+    }
+}
+
+@Composable
+private fun UninstallDialog(actions: Actions) {
+    AlertDialog(
+        onDismissRequest = actions.cancelUninstall,
+        icon = { Icon(Icons.Rounded.DeleteOutline, null) },
+        title = { Text(stringResource(R.string.uninstall_title)) },
+        text = { Text(stringResource(R.string.uninstall_body)) },
+        confirmButton = {
+            TextButton(
+                onClick = actions.uninstall,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) { Text(stringResource(R.string.uninstall_confirm)) }
+        },
+        dismissButton = { TextButton(onClick = actions.cancelUninstall) { Text(stringResource(R.string.cancel)) } },
+    )
 }
 
 @Composable
@@ -282,14 +324,22 @@ fun SummaryScreen(state: FlowState, busy: Boolean, actions: Actions) {
         }
         Note(stringResource(R.string.summary_keep_files))
         Note(stringResource(R.string.summary_boot))
+        if (!check.isUefi) Note(stringResource(R.string.summary_bios))
+        if (check.isUefi && state.source!!.secureBoot) Note(stringResource(R.string.secure_boot), isError = true)
     }
 }
 
 // ---- progress, done, failed ----------------------------------------------------------------
 
+private val TASK_TITLES = mapOf(
+    Task.INSTALL to R.string.installing_title,
+    Task.UPDATE to R.string.updating_title,
+    Task.REMOVE to R.string.removing_title,
+)
+
 @Composable
 fun InstallingScreen(state: FlowState) {
-    Page(icon = Icons.Rounded.Downloading, title = stringResource(R.string.installing_title),
+    Page(icon = Icons.Rounded.Downloading, title = stringResource(TASK_TITLES.getValue(state.task)),
         body = stringResource(R.string.installing_body)) {
         Column(Modifier.fillMaxWidth().padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -305,14 +355,66 @@ fun InstallingScreen(state: FlowState) {
     }
 }
 
+/** Title and text of the last screen: installed from the USB drive, updated, or removed. */
+private val FINISHED_TEXTS = mapOf(
+    Task.INSTALL to (R.string.done_title to R.string.done_body),
+    Task.UPDATE to (R.string.updated_title to R.string.updated_body),
+    Task.REMOVE to (R.string.removed_title to R.string.removed_body),
+)
+
 @Composable
-fun DoneScreen(actions: Actions) {
+fun DoneScreen(state: FlowState, actions: Actions) {
+    val (title, body) = FINISHED_TEXTS.getValue(state.task)
     Page(
         icon = Icons.Rounded.CheckCircle,
-        title = stringResource(R.string.done_title),
-        body = stringResource(R.string.done_body),
+        title = stringResource(title),
+        body = stringResource(body),
         actions = { Button(onClick = actions.reboot) { Text(stringResource(R.string.done_reboot)) } },
-    )
+    ) {
+        if (state.task != Task.REMOVE && state.source?.secureBoot == true) Note(stringResource(R.string.secure_boot), isError = true)
+    }
+}
+
+// ---- an installed system: update from a USB drive -------------------------------------------
+
+@Composable
+fun UpdateHomeScreen(state: FlowState, busy: Boolean, actions: Actions) {
+    val running = state.source!!.installed!!
+    Page(
+        icon = Icons.Rounded.SystemUpdate,
+        title = stringResource(R.string.update_title),
+        body = stringResource(R.string.update_body),
+        actions = { MainButton(stringResource(R.string.update_search), busy, onClick = actions.findUpdate) },
+    ) {
+        ErrorNote(state.error)
+        Text(stringResource(R.string.update_current, running.version), style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+fun UpdateFoundScreen(state: FlowState, busy: Boolean, actions: Actions) {
+    val update = state.update!!
+    Page(
+        icon = Icons.Rounded.SystemUpdate,
+        title = stringResource(R.string.update_found_title),
+        body = null,
+        actions = {
+            BackButton(actions, busy)
+            if (update.isNewer) MainButton(stringResource(R.string.update), busy, onClick = actions.install)
+            if (!update.isNewer) MainButton(stringResource(R.string.update_search_again), busy, onClick = actions.findUpdate)
+        },
+    ) {
+        Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+                SummaryRow(stringResource(R.string.update_installed_label), update.currentVersion)
+                HorizontalDivider()
+                SummaryRow(stringResource(R.string.update_new_label), update.version)
+            }
+        }
+        Note(stringResource(R.string.update_keeps_data).takeIf { update.isNewer } ?: stringResource(R.string.update_not_newer),
+            isError = !update.isNewer)
+    }
 }
 
 @Composable

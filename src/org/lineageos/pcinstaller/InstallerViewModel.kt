@@ -71,6 +71,26 @@ class InstallerViewModel : ViewModel() {
         }
     }
 
+    /** On an installed system: look for a live USB drive with a newer system. */
+    fun findUpdate() = runDaemon(FlowEvent::UpdateMissing) { client ->
+        client.findUpdate().fold(FlowEvent::UpdateFound, FlowEvent::UpdateMissing)
+    }
+
+    fun askUninstall() = on(FlowEvent.UninstallAsked)
+
+    fun cancelUninstall() = on(FlowEvent.UninstallCancelled)
+
+    fun uninstall() {
+        if (_busy.value) return
+        val partition = state.value.selected!!.name
+        val folder = state.value.folder
+        on(FlowEvent.UninstallStarted)
+        runDaemon(FlowEvent::InstallFailed) { client ->
+            client.uninstall(partition, folder) { step, percent -> on(FlowEvent.Progressed(step, percent)) }
+                .fold({ FlowEvent.Installed }, FlowEvent::InstallFailed)
+        }
+    }
+
     fun back() {
         if (_busy.value) return
         on(FlowEvent.Back)

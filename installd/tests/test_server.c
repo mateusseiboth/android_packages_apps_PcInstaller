@@ -77,6 +77,7 @@ static void info_tells_the_firmware_and_the_source(void)
 	CHECK_STR(field(0, "live"), "1");
 	CHECK_STR(field(0, "folder"), "lineage");
 	CHECK_STR(field(0, "system"), "1048576");
+	CHECK_STR(field(0, "secure_boot"), "0");
 	fake_teardown();
 }
 

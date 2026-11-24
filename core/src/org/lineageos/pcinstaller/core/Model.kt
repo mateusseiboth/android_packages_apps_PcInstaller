@@ -8,9 +8,18 @@ data class SourceInfo(
     val kernel: Long,
     val initrd: Long,
     val system: Long,
+    /** On an installed system (not live): which install is running. */
+    val installed: RunningInstall? = null,
+    /** The firmware only starts signed loaders; our GRUB needs it turned off. */
+    val secureBoot: Boolean = false,
 ) {
     val copyBytes: Long get() = kernel + initrd + system
 }
+
+data class RunningInstall(val partition: String, val folder: String, val system: SystemForm, val version: String)
+
+/** A live USB drive plugged into an installed system. */
+data class UpdateInfo(val source: String, val version: String, val currentVersion: String, val isNewer: Boolean)
 
 data class Partition(
     val name: String,
@@ -32,7 +41,7 @@ data class Partition(
 /** What <partition>/<folder> already holds. */
 data class InstallState(val hasSystem: Boolean, val hasData: Boolean, val oldSystemBytes: Long)
 
-data class PlanCheck(val isUpdate: Boolean, val need: Long, val free: Long, val esp: String)
+data class PlanCheck(val isUpdate: Boolean, val need: Long, val free: Long, val isUefi: Boolean)
 
 data class InstallPlan(
     val partition: String,
@@ -42,13 +51,19 @@ data class InstallPlan(
     val dataSize: Long,
 )
 
-enum class SystemForm(val wire: String) { IMAGE("image"), FOLDER("folder") }
+enum class SystemForm(val wire: String) {
+    IMAGE("image"), FOLDER("folder");
+
+    companion object {
+        fun fromWire(wire: String?): SystemForm = entries.firstOrNull { it.wire == wire } ?: IMAGE
+    }
+}
 
 enum class DataForm(val wire: String) { IMAGE("image"), FOLDER("folder"), KEEP("keep") }
 
 enum class InstallStep(val wire: String) {
-    PREPARE("prepare"), KERNEL("kernel"), SYSTEM("system"), DATA("data"), BOOT("boot"), FINISH("finish"),
-    UNKNOWN("");
+    PREPARE("prepare"), KERNEL("kernel"), SYSTEM("system"), DATA("data"), BOOT("boot"), REMOVE("remove"),
+    FINISH("finish"), UNKNOWN("");
 
     companion object {
         fun fromWire(wire: String?): InstallStep = entries.firstOrNull { it.wire == wire } ?: UNKNOWN
@@ -65,12 +80,14 @@ enum class InstallError(val code: String) {
     FILE_TOO_LARGE("file_too_large"),
     BITLOCKER("bitlocker"),
     ENCRYPTED("encrypted"),
+    LVM("lvm"),
+    RAID("raid"),
     NO_SPACE("no_space"),
     DATA_TOO_SMALL("data_too_small"),
     DATA_EXISTS("data_exists"),
     NO_DATA_TO_KEEP("no_data_to_keep"),
-    NOT_UEFI("not_uefi"),
     NO_ESP("no_esp"),
+    NO_BOOT_ROOM("no_boot_room"),
     SOURCE_MISSING("source_missing"),
     UNKNOWN_PARTITION("unknown_partition"),
     MOUNT_FAILED("mount_failed"),
@@ -78,6 +95,11 @@ enum class InstallError(val code: String) {
     DATA_FAILED("data_failed"),
     ESP_FAILED("esp_failed"),
     EFI_FAILED("efi_failed"),
+    BOOT_FAILED("boot_failed"),
+    MENU_FAILED("menu_failed"),
+    NOT_INSTALLED("not_installed"),
+    RUNNING_SYSTEM("running_system"),
+    NO_UPDATE_SOURCE("no_update_source"),
     IO_ERROR("io_error"),
     DAEMON_UNREACHABLE("daemon_unreachable"),
     UNKNOWN("unknown");

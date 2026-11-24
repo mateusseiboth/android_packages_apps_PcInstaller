@@ -26,12 +26,54 @@ class InstallerFlowTest {
     }
 
     @Test
-    fun aLegacyBootOrAnInstalledSystemStops() {
+    fun aBiosComputerInstallsToo() {
         val bios = InstallerFlow.reduce(FlowState(), FlowEvent.Loaded(source.copy(uefi = false), listOf(ext4)))
-        assertEquals(Screen.FAILED, bios.screen)
-        assertEquals(InstallError.NOT_UEFI, bios.error)
-        val installed = InstallerFlow.reduce(FlowState(), FlowEvent.Loaded(source.copy(live = false), listOf(ext4)))
-        assertEquals(InstallError.SOURCE_MISSING, installed.error)
+        assertEquals(Screen.PARTITIONS, bios.screen)
+    }
+
+    @Test
+    fun anInstalledSystemOffersAnUpdateFromAUsbDrive() {
+        val running = RunningInstall("sda3", "lineage", SystemForm.FOLDER, "24.0-old")
+        val installed = InstallerFlow.reduce(FlowState(),
+            FlowEvent.Loaded(source.copy(live = false, installed = running), emptyList()))
+        assertEquals(Screen.UPDATE_HOME, installed.screen)
+        val notFound = InstallerFlow.reduce(installed, FlowEvent.UpdateMissing(InstallError.NO_UPDATE_SOURCE))
+        assertEquals(Screen.UPDATE_HOME, notFound.screen)
+        assertEquals(InstallError.NO_UPDATE_SOURCE, notFound.error)
+        val found = InstallerFlow.reduce(notFound, FlowEvent.UpdateFound(UpdateInfo("sdb1", "24.0-new", "24.0-old", true)))
+        assertEquals(Screen.UPDATE_FOUND, found.screen)
+        assertEquals(InstallPlan("sda3", "lineage", SystemForm.FOLDER, DataForm.KEEP, 0), found.plan())
+        assertEquals(Screen.UPDATE_HOME, InstallerFlow.reduce(found, FlowEvent.Back).screen)
+        val updating = InstallerFlow.reduce(found, FlowEvent.InstallStarted)
+        assertEquals(Screen.INSTALLING, updating.screen)
+        assertEquals(Task.UPDATE, updating.task)
+    }
+
+    @Test
+    fun aComputerWithoutTheUsbDriveOrAnInstallStops() {
+        val neither = InstallerFlow.reduce(FlowState(), FlowEvent.Loaded(source.copy(live = false), emptyList()))
+        assertEquals(Screen.FAILED, neither.screen)
+        assertEquals(InstallError.SOURCE_MISSING, neither.error)
+    }
+
+    @Test
+    fun removingAnInstallAsksFirst() {
+        val old = InstallState(hasSystem = true, hasData = true, oldSystemBytes = 0)
+        val forms = InstallerFlow.reduce(loaded(), FlowEvent.PartitionChosen(ext4, old))
+        val asking = InstallerFlow.reduce(forms, FlowEvent.UninstallAsked)
+        assertEquals(true, asking.isConfirmingUninstall)
+        assertEquals(false, InstallerFlow.reduce(asking, FlowEvent.UninstallCancelled).isConfirmingUninstall)
+        val removing = InstallerFlow.reduce(asking, FlowEvent.UninstallStarted)
+        assertEquals(Screen.INSTALLING, removing.screen)
+        assertEquals(Task.REMOVE, removing.task)
+        assertEquals(false, removing.isConfirmingUninstall)
+        assertEquals(Screen.REMOVED, InstallerFlow.reduce(removing, FlowEvent.Installed).screen)
+    }
+
+    @Test
+    fun onlyAnExistingInstallCanBeRemoved() {
+        val forms = InstallerFlow.reduce(loaded(), FlowEvent.PartitionChosen(ext4, fresh))
+        assertEquals(false, InstallerFlow.reduce(forms, FlowEvent.UninstallAsked).isConfirmingUninstall)
     }
 
     @Test
@@ -73,7 +115,7 @@ class InstallerFlowTest {
     @Test
     fun aGoodCheckLeadsToTheSummaryAndABadOneStays() {
         val forms = InstallerFlow.reduce(loaded(), FlowEvent.PartitionChosen(ext4, fresh))
-        val summary = InstallerFlow.reduce(forms, FlowEvent.Checked(PlanCheck(false, 5, 9, "sda1")))
+        val summary = InstallerFlow.reduce(forms, FlowEvent.Checked(PlanCheck(false, 5, 9, true)))
         assertEquals(Screen.SUMMARY, summary.screen)
         val refused = InstallerFlow.reduce(forms, FlowEvent.CheckFailed(InstallError.NO_ESP))
         assertEquals(Screen.FORMS, refused.screen)
@@ -84,9 +126,10 @@ class InstallerFlowTest {
     @Test
     fun theInstallReportsProgressThenFinishes() {
         val forms = InstallerFlow.reduce(loaded(), FlowEvent.PartitionChosen(ext4, fresh))
-        var s = InstallerFlow.reduce(forms, FlowEvent.Checked(PlanCheck(false, 5, 9, "sda1")))
+        var s = InstallerFlow.reduce(forms, FlowEvent.Checked(PlanCheck(false, 5, 9, true)))
         s = InstallerFlow.reduce(s, FlowEvent.InstallStarted)
         assertEquals(Screen.INSTALLING, s.screen)
+        assertEquals(Task.INSTALL, s.task)
         s = InstallerFlow.reduce(s, FlowEvent.Progressed(InstallStep.SYSTEM, 42))
         assertEquals(42, s.percent)
         assertEquals(InstallStep.SYSTEM, s.step)

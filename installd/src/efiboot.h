@@ -29,5 +29,7 @@ int save_efi_var(const char *dir, const char *name, const void *data, size_t len
 int read_efi_var(const char *dir, const char *name, void *data, size_t cap, size_t *len);
 /* Reuses a Boot#### holding the same option, else takes a free number; then updates BootOrder. */
 int apply_boot_entry(const char *dir, const uint8_t *option, size_t len, uint16_t *number);
+/* Secure Boot on: firmware will refuse our unsigned GRUB until it is turned off. */
+int is_secure_boot_on(const char *dir);
 /* Deletes every Boot#### whose description is description and drops it from BootOrder; returns how many. */
 int remove_boot_entries(const char *dir, const char *description);

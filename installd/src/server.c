@@ -8,6 +8,7 @@
 
 #include "biosboot.h"
 #include "disks.h"
+#include "efiboot.h"
 #include "install.h"
 #include "plan.h"
 #include "proto.h"
@@ -123,6 +124,11 @@ static int is_running_install(struct server *s, const char *part, const char *fo
 
 /* ---- INFO ----------------------------------------------------------------------------- */
 
+static int read_secure_boot(const struct server *s)
+{
+	return is_dir(s->env->efivars) && !s->ops->mount_efivars(s->env) && is_secure_boot_on(s->env->efivars);
+}
+
 static const char *find_running_form(struct server *s)
 {
 	struct install_state st;
@@ -154,6 +160,7 @@ static const char *handle_info(const struct request *q)
 	line_begin(&l, "INFO");
 	line_add_u64(&l, "version", PROTOCOL_VERSION);
 	line_add_u64(&l, "uefi", (unsigned long long)is_dir(s->env->efivars));
+	line_add_u64(&l, "secure_boot", (unsigned long long)read_secure_boot(s));
 	line_add_u64(&l, "live", (unsigned long long)live);
 	line_add(&l, "source", live ? s->src.name : "");
 	line_add(&l, "folder", live ? s->src.folder : "");
