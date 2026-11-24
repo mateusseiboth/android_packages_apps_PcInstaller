@@ -1,0 +1,56 @@
+// PcInstaller: installs LineageOS for PCs from the live ISO. The privileged work is done by
+// pc-installd (installd/); the app's logic lives in core/ and is tested on the host.
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+java_library {
+    name: "PcInstallerCore",
+    host_supported: true,
+    srcs: ["core/src/**/*.kt"],
+    sdk_version: "core_current",
+}
+
+java_test_host {
+    name: "PcInstallerCoreTests",
+    srcs: ["core/tests/**/*.kt"],
+    static_libs: [
+        "PcInstallerCore",
+        "junit",
+    ],
+    test_options: {
+        unit_test: true,
+    },
+}
+
+android_app {
+    name: "PcInstaller",
+    srcs: ["src/**/*.kt"],
+    resource_dirs: ["res"],
+    manifest: "AndroidManifest.xml",
+    platform_apis: true,
+    certificate: "platform",
+    privileged: true,
+    system_ext_specific: true,
+    static_libs: [
+        "PcInstallerCore",
+        "androidx.activity_activity",
+        "androidx.activity_activity-compose",
+        "androidx.lifecycle_lifecycle-viewmodel",
+        "androidx.lifecycle_lifecycle-runtime-compose",
+        "androidx.compose.runtime_runtime",
+        "androidx.compose.ui_ui",
+        "androidx.compose.foundation_foundation",
+        "androidx.compose.foundation_foundation-layout",
+        "androidx.compose.animation_animation",
+        "androidx.compose.material3_material3",
+        "androidx.compose.material_material-icons-core",
+        "androidx.compose.material_material-icons-extended",
+        "kotlinx_coroutines_android",
+    ],
+    optimize: {
+        optimize: true,
+        shrink_resources: true,
+    },
+    required: ["pc-installd"],
+}

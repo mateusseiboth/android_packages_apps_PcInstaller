@@ -105,6 +105,13 @@ class InstallerFlowTest {
     }
 
     @Test
+    fun aPartitionThatCannotBeOpenedStaysInTheList() {
+        val s = InstallerFlow.reduce(loaded(), FlowEvent.InspectFailed(InstallError.MOUNT_FAILED))
+        assertEquals(Screen.PARTITIONS, s.screen)
+        assertEquals(InstallError.MOUNT_FAILED, s.error)
+    }
+
+    @Test
     fun thePlanCarriesTheChoices() {
         var s = InstallerFlow.reduce(loaded(), FlowEvent.PartitionChosen(ntfs, fresh))
         s = InstallerFlow.reduce(s, FlowEvent.DataSizeChosen(12 * gib))

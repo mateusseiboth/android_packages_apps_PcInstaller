@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- English fallback. The installer speaks Brazilian Portuguese first (values-pt). -->
+<resources>
+    <string name="app_name">Install LineageOS</string>
+    <string name="step_of">Step %1$d of %2$d</string>
+    <string name="back">Back</string>
+    <string name="next">Continue</string>
+
+    <string name="welcome_title">Install LineageOS on this computer</string>
+    <string name="welcome_body">LineageOS goes into a folder on a partition you already have. Your files stay where they are.</string>
+    <string name="welcome_start">Start</string>
+    <string name="loading">Looking for disks…</string>
+
+    <string name="partitions_title">Where to install?</string>
+    <string name="partitions_body">Choose a partition with free space.</string>
+    <string name="partition_free">%1$s free of %2$s</string>
+    <string name="partition_no_label">No name</string>
+    <string name="partition_images_only">On NTFS, exFAT and FAT32 only image files can be used.</string>
+    <string name="fs_unknown">Unknown</string>
+
+    <string name="forms_title">How to install?</string>
+    <string name="forms_update">LineageOS is already in this folder. It will be updated and your data kept.</string>
+    <string name="system_section">System</string>
+    <string name="system_image">Image file</string>
+    <string name="system_image_body">A single file. Works on any partition.</string>
+    <string name="system_folder">Extracted files</string>
+    <string name="system_folder_body">The system files in a folder you can browse.</string>
+    <string name="data_section">Your data</string>
+    <string name="data_folder">Folder</string>
+    <string name="data_folder_body">Uses the free space of the partition as needed.</string>
+    <string name="data_image">Fixed size file</string>
+    <string name="data_image_body">Reserves the space chosen below.</string>
+    <string name="data_keep">Keep the current data</string>
+    <string name="data_keep_body">Apps, accounts and files stay as they are.</string>
+    <string name="data_size">Space for data: %1$s</string>
+    <string name="only_on_linux">Needs a Linux partition (ext4, F2FS or Btrfs).</string>
+
+    <string name="summary_title">Ready to install?</string>
+    <string name="summary_update_title">Ready to update?</string>
+    <string name="summary_partition">Partition</string>
+    <string name="summary_folder">Folder</string>
+    <string name="summary_system">System</string>
+    <string name="summary_data">Data</string>
+    <string name="summary_space">Space used</string>
+    <string name="summary_keep_files">Your files on this partition will not be erased.</string>
+    <string name="summary_boot">The computer will start LineageOS from now on. To use another system, pick it in the computer\'s boot menu.</string>
+    <string name="install">Install</string>
+    <string name="update">Update</string>
+
+    <string name="installing_title">Installing…</string>
+    <string name="installing_body">Keep the computer on and the USB drive plugged in.</string>
+    <string name="step_prepare">Preparing the partition</string>
+    <string name="step_kernel">Copying the startup files</string>
+    <string name="step_system">Copying the system</string>
+    <string name="step_data">Creating the space for your data</string>
+    <string name="step_boot">Setting up startup</string>
+    <string name="step_finish">Finishing</string>
+
+    <string name="done_title">LineageOS is installed</string>
+    <string name="done_body">Remove the USB drive and restart the computer.</string>
+    <string name="done_reboot">Restart</string>
+
+    <string name="failed_title">Could not continue</string>
+    <string name="failed_retry">Try again</string>
+
+    <string name="error_bitlocker">This partition is protected by BitLocker. Turn BitLocker off in Windows to use it.</string>
+    <string name="error_encrypted">This partition is encrypted. Choose another one.</string>
+    <string name="error_fs_unsupported">LineageOS cannot be installed on this kind of partition. Choose another one.</string>
+    <string name="error_source_partition">This is the LineageOS USB drive. Choose a partition on the computer.</string>
+    <string name="error_no_space">Not enough free space. Free some space or choose another partition.</string>
+    <string name="error_fs_images_only">On NTFS, exFAT and FAT32 only image files can be used.</string>
+    <string name="error_file_too_large">On FAT32 each file must be smaller than 4 GB. Choose less space for data.</string>
+    <string name="error_data_too_small">The space for data must be at least 2 GB.</string>
+    <string name="error_not_uefi">This computer started in legacy (BIOS) mode. Restart and boot the USB drive in UEFI mode.</string>
+    <string name="error_no_esp">No EFI partition was found. Install on a disk that has one.</string>
+    <string name="error_source_missing">Open the installer from the LineageOS USB drive.</string>
+    <string name="error_unknown_partition">The partition is gone. Try again.</string>
+    <string name="error_mount_failed">The partition could not be opened. If it belongs to Windows, turn off Fast Startup, shut Windows down and try again.</string>
+    <string name="error_copy_failed">Copying the files failed. Check the disk and try again.</string>
+    <string name="error_data_failed">The space for your data could not be created. Try again.</string>
+    <string name="error_esp_failed">The EFI partition could not be written. Try again.</string>
+    <string name="error_efi_failed">LineageOS was copied but the boot entry was not created. Pick LineageOS in the computer\'s boot menu.</string>
+    <string name="error_io_error">Writing to the disk failed. Try again.</string>
+    <string name="error_daemon_unreachable">The installer service did not answer. Try again.</string>
+    <string name="error_unknown">Something went wrong. Try again.</string>
+</resources>

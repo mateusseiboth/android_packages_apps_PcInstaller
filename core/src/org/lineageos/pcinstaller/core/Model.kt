@@ -91,3 +91,8 @@ sealed interface DaemonResult<out T> {
     data class Ok<T>(val value: T) : DaemonResult<T>
     data class Failed(val error: InstallError) : DaemonResult<Nothing>
 }
+
+inline fun <T, R> DaemonResult<T>.fold(onOk: (T) -> R, onFailed: (InstallError) -> R): R = when (this) {
+    is DaemonResult.Ok -> onOk(value)
+    is DaemonResult.Failed -> onFailed(error)
+}

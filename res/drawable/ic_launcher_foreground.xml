@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A monitor with a download arrow. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="@color/icon_foreground"
+        android:pathData="M32,34h44a4,4 0,0 1,4 4v28a4,4 0,0 1,-4 4H60v5h7v4H41v-4h7v-5H32a4,4 0,0 1,-4 -4V38a4,4 0,0 1,4 -4zM32,38v28h44V38z" />
+    <path
+        android:fillColor="@color/icon_foreground"
+        android:pathData="M51,42h6v10h6l-9,9 -9,-9h6z" />
+</vector>

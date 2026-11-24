@@ -27,6 +27,7 @@ sealed interface FlowEvent {
     data class Loaded(val source: SourceInfo, val partitions: List<Partition>) : FlowEvent
     data class LoadFailed(val error: InstallError) : FlowEvent
     data class PartitionChosen(val partition: Partition, val state: InstallState) : FlowEvent
+    data class InspectFailed(val error: InstallError) : FlowEvent
     data class SystemChosen(val form: SystemForm) : FlowEvent
     data class DataChosen(val form: DataForm) : FlowEvent
     data class DataSizeChosen(val bytes: Long) : FlowEvent
@@ -54,6 +55,7 @@ object InstallerFlow {
         is FlowEvent.Loaded -> onLoaded(s, e)
         is FlowEvent.LoadFailed -> s.copy(screen = Screen.FAILED, error = e.error)
         is FlowEvent.PartitionChosen -> onPartitionChosen(s, e)
+        is FlowEvent.InspectFailed -> s.copy(screen = Screen.PARTITIONS, error = e.error)
         is FlowEvent.SystemChosen -> onSystemChosen(s, e.form)
         is FlowEvent.DataChosen -> onDataChosen(s, e.form)
         is FlowEvent.DataSizeChosen -> onDataSizeChosen(s, e.bytes)

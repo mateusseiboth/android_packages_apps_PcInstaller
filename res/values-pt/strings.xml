@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Instalar o LineageOS</string>
+    <string name="step_of">Passo %1$d de %2$d</string>
+    <string name="back">Voltar</string>
+    <string name="next">Continuar</string>
+
+    <string name="welcome_title">Instalar o LineageOS neste computador</string>
+    <string name="welcome_body">O LineageOS fica numa pasta de uma partição que você já tem. Seus arquivos continuam onde estão.</string>
+    <string name="welcome_start">Começar</string>
+    <string name="loading">Procurando discos…</string>
+
+    <string name="partitions_title">Onde instalar?</string>
+    <string name="partitions_body">Escolha uma partição com espaço livre.</string>
+    <string name="partition_free">%1$s livres de %2$s</string>
+    <string name="partition_no_label">Sem nome</string>
+    <string name="partition_images_only">Em NTFS, exFAT e FAT32 só é possível usar arquivos de imagem.</string>
+    <string name="fs_unknown">Desconhecido</string>
+
+    <string name="forms_title">Como instalar?</string>
+    <string name="forms_update">Já existe um LineageOS nesta pasta. Ele será atualizado e seus dados serão mantidos.</string>
+    <string name="system_section">Sistema</string>
+    <string name="system_image">Arquivo de imagem</string>
+    <string name="system_image_body">Um único arquivo. Funciona em qualquer partição.</string>
+    <string name="system_folder">Arquivos extraídos</string>
+    <string name="system_folder_body">Os arquivos do sistema numa pasta que você pode abrir.</string>
+    <string name="data_section">Seus dados</string>
+    <string name="data_folder">Pasta</string>
+    <string name="data_folder_body">Usa o espaço livre da partição conforme precisar.</string>
+    <string name="data_image">Arquivo de tamanho fixo</string>
+    <string name="data_image_body">Reserva o espaço escolhido abaixo.</string>
+    <string name="data_keep">Manter os dados atuais</string>
+    <string name="data_keep_body">Apps, contas e arquivos continuam como estão.</string>
+    <string name="data_size">Espaço para dados: %1$s</string>
+    <string name="only_on_linux">Precisa de uma partição Linux (ext4, F2FS ou Btrfs).</string>
+
+    <string name="summary_title">Tudo pronto para instalar?</string>
+    <string name="summary_update_title">Tudo pronto para atualizar?</string>
+    <string name="summary_partition">Partição</string>
+    <string name="summary_folder">Pasta</string>
+    <string name="summary_system">Sistema</string>
+    <string name="summary_data">Dados</string>
+    <string name="summary_space">Espaço usado</string>
+    <string name="summary_keep_files">Seus arquivos nesta partição não serão apagados.</string>
+    <string name="summary_boot">O computador passará a abrir o LineageOS. Para usar outro sistema, escolha-o no menu de inicialização do computador.</string>
+    <string name="install">Instalar</string>
+    <string name="update">Atualizar</string>
+
+    <string name="installing_title">Instalando…</string>
+    <string name="installing_body">Mantenha o computador ligado e o pendrive conectado.</string>
+    <string name="step_prepare">Preparando a partição</string>
+    <string name="step_kernel">Copiando os arquivos de inicialização</string>
+    <string name="step_system">Copiando o sistema</string>
+    <string name="step_data">Criando o espaço para seus dados</string>
+    <string name="step_boot">Configurando a inicialização</string>
+    <string name="step_finish">Concluindo</string>
+
+    <string name="done_title">O LineageOS está instalado</string>
+    <string name="done_body">Remova o pendrive e reinicie o computador.</string>
+    <string name="done_reboot">Reiniciar</string>
+
+    <string name="failed_title">Não foi possível continuar</string>
+    <string name="failed_retry">Tentar de novo</string>
+
+    <string name="error_bitlocker">Esta partição está protegida pelo BitLocker. Desative o BitLocker no Windows para usá-la.</string>
+    <string name="error_encrypted">Esta partição está criptografada. Escolha outra.</string>
+    <string name="error_fs_unsupported">O LineageOS não pode ser instalado neste tipo de partição. Escolha outra.</string>
+    <string name="error_source_partition">Este é o pendrive do LineageOS. Escolha uma partição do computador.</string>
+    <string name="error_no_space">Espaço livre insuficiente. Libere espaço ou escolha outra partição.</string>
+    <string name="error_fs_images_only">Em NTFS, exFAT e FAT32 só é possível usar arquivos de imagem.</string>
+    <string name="error_file_too_large">Em FAT32 cada arquivo precisa ter menos de 4 GB. Escolha menos espaço para dados.</string>
+    <string name="error_data_too_small">O espaço para dados precisa ter pelo menos 2 GB.</string>
+    <string name="error_not_uefi">Este computador iniciou no modo legado (BIOS). Reinicie e abra o pendrive no modo UEFI.</string>
+    <string name="error_no_esp">Nenhuma partição EFI foi encontrada. Instale num disco que tenha uma.</string>
+    <string name="error_source_missing">Abra o instalador a partir do pendrive do LineageOS.</string>
+    <string name="error_unknown_partition">A partição não foi encontrada. Tente de novo.</string>
+    <string name="error_mount_failed">Não foi possível abrir a partição. Se ela for do Windows, desative a inicialização rápida, desligue o Windows e tente de novo.</string>
+    <string name="error_copy_failed">A cópia dos arquivos falhou. Verifique o disco e tente de novo.</string>
+    <string name="error_data_failed">Não foi possível criar o espaço para seus dados. Tente de novo.</string>
+    <string name="error_esp_failed">Não foi possível gravar na partição EFI. Tente de novo.</string>
+    <string name="error_efi_failed">O LineageOS foi copiado, mas a entrada de inicialização não foi criada. Escolha o LineageOS no menu de inicialização do computador.</string>
+    <string name="error_io_error">A gravação no disco falhou. Tente de novo.</string>
+    <string name="error_daemon_unreachable">O serviço de instalação não respondeu. Tente de novo.</string>
+    <string name="error_unknown">Algo deu errado. Tente de novo.</string>
+</resources>
