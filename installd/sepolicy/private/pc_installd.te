@@ -24,7 +24,7 @@ allow pc_installd { labeledfs vfat exfat unlabeled }:filesystem { mount unmount 
 allow pc_installd sysfs:dir mounton;
 
 # data.img
-allow pc_installd mke2fs_exec:file rx_file_perms;
+allow pc_installd e2fs_exec:file rx_file_perms;
 
 # TODO enforcing: extracting the system sets every file's security.selinux, which needs relabelto
 # on all file types (against coredomain neverallows); EFI variables need an efivarfs label.
