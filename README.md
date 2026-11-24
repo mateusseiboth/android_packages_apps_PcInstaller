@@ -47,6 +47,10 @@ the device of `/` from `/proc/self/mountinfo` (a loop device), asks the loop dev
 (`LOOP_GET_STATUS64`) and mounts that partition again, read-only, at `/mnt/pc-installd/src`. The ISO must hold
 `<folder>/{kernel,initrd.img,system.img,grubx64.efi}`.
 
+Android does not mount efivarfs; pc-installd mounts it on `/sys/firmware/efi/efivars` before writing the boot
+entry. A partition that cannot be mounted read-only to measure its free space (Windows hibernated or with Fast
+Startup) is listed with `reason=mount_failed`.
+
 ## Protocol
 
 Unix stream socket `/dev/socket/pc_installd` (0660 root:system); only uid 0 and 1000 are served, one client at
@@ -74,7 +78,7 @@ data lines, then `OK` or `ERR code=<error>`.
 ## Tests
 
 ```sh
-make -C installd test          # 71 C checks (fake sysfs/dev/efivars machine) + socket and cmdline tests (Python)
+make -C installd test          # 72 C checks (fake sysfs/dev/efivars machine) + socket and cmdline tests (Python)
 core/run_tests.sh              # 30 JUnit tests of the app core, with external/kotlinc and JUnit from prebuilts
 python3 -m unittest discover -s tests   # UI strings: both languages, placeholders, no em dash
 tools/typecheck.sh             # compiles core + Compose UI against the prebuilts (needs a previous build's out/)

@@ -92,6 +92,17 @@ static void list_describes_each_partition(void)
 	fake_teardown();
 }
 
+static void a_partition_that_cannot_be_opened_says_so(void)
+{
+	setup_machine();
+	fake_sh("rmdir %s", "mnt-sda3");
+	send("LIST\n");
+	int sda3 = find_reply("PART", "name", "sda3");
+	CHECK_STR(field(sda3, "usable"), "0");
+	CHECK_STR(field(sda3, "reason"), "mount_failed");
+	fake_teardown();
+}
+
 static void check_validates_a_plan(void)
 {
 	setup_machine();
@@ -159,6 +170,7 @@ int main(void)
 {
 	RUN(info_tells_the_firmware_and_the_source);
 	RUN(list_describes_each_partition);
+	RUN(a_partition_that_cannot_be_opened_says_so);
 	RUN(check_validates_a_plan);
 	RUN(inspect_reports_an_existing_install);
 	RUN(install_streams_progress_and_finishes);

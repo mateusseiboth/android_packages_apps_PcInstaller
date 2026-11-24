@@ -93,9 +93,12 @@ static void measure_free(const struct sys_env *env, const struct sys_ops *ops, s
 	snprintf(dev, sizeof dev, "%s/%s", env->dev_dir, p->name);
 	snprintf(dir, sizeof dir, "%s/probe", env->work);
 	make_dirs(dir, 0700);
-	if (ops->mount(env, dev, dir, find_mount_type(p->fs), 1))
+	if (ops->mount(env, dev, dir, find_mount_type(p->fs), 1)) {
+		p->cannot_mount = 1;
 		return;
-	p->free = !statvfs(dir, &st) ? (unsigned long long)st.f_bavail * st.f_frsize : 0;
+	}
+	p->cannot_mount = statvfs(dir, &st) != 0;
+	p->free = p->cannot_mount ? 0 : (unsigned long long)st.f_bavail * st.f_frsize;
 	ops->umount(env, dir);
 }
 

@@ -112,8 +112,17 @@ static inline int fake_make_ext4(const struct sys_env *env, const char *image)
 	return ok ? 0 : -1;
 }
 
+static int fake_efivars_mounts;
+
+static inline int fake_mount_efivars(const struct sys_env *env)
+{
+	(void)env;
+	fake_efivars_mounts++;
+	return 0;
+}
+
 static const struct sys_ops FAKE_OPS = { fake_mount, fake_umount, fake_attach_loop, fake_find_loop_backing,
-					 fake_make_ext4 };
+					 fake_make_ext4, fake_mount_efivars };
 
 static inline void fake_setup(void)
 {

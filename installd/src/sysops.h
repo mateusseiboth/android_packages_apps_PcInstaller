@@ -23,6 +23,8 @@ struct sys_ops {
 	/* The device (major:minor) holding the file behind a loop device. */
 	int (*find_loop_backing)(const struct sys_env *env, const char *loop_name, unsigned *major, unsigned *minor);
 	int (*make_ext4)(const struct sys_env *env, const char *image);
+	/* Android does not mount efivarfs; this mounts it on env->efivars unless it already is. */
+	int (*mount_efivars)(const struct sys_env *env);
 };
 
 const struct sys_env *linux_sys_env(void);

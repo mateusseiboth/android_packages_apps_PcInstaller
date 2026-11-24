@@ -96,7 +96,10 @@ static const char *handle_info(const struct request *q)
 
 static const char *find_reason(const struct partition *p)
 {
-	return p->is_source ? "source_partition" : find_fs_rule(p->fs)->reason;
+	if (p->is_source)
+		return "source_partition";
+	const char *reason = find_fs_rule(p->fs)->reason;
+	return reason ? reason : p->cannot_mount ? "mount_failed" : NULL;
 }
 
 static void send_partition(const struct request *q, const struct partition *p)

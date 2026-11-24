@@ -323,6 +323,8 @@ static int save_boot_entry(struct run *r)
 	struct efi_disk_location loc;
 	uint8_t option[1024];
 	uint16_t number;
+	if (r->job->ops->mount_efivars(r->job->env))
+		return -1;
 	if (read_part_table(r->job->env, r->job->esp->disk, &t) || find_efi_location(&t, r->job->esp->number, &loc))
 		return -1;
 	size_t n = build_load_option(option, sizeof option, "LineageOS", &loc, EFI_LOADER);

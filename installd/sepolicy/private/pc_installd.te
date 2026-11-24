@@ -20,6 +20,8 @@ allow pc_installd proc_cmdline:file r_file_perms;
 # Its mount points under /mnt/pc-installd, and the file systems it mounts there.
 allow pc_installd tmpfs:dir create_dir_perms;
 allow pc_installd { labeledfs vfat exfat unlabeled }:filesystem { mount unmount getattr };
+# efivarfs on /sys/firmware/efi/efivars (Boot#### and BootOrder).
+allow pc_installd sysfs:dir mounton;
 
 # data.img
 allow pc_installd mke2fs_exec:file rx_file_perms;

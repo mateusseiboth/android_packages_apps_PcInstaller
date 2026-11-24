@@ -11,6 +11,7 @@ struct partition {
 	int number;              /* partition number on its disk */
 	int is_esp;
 	int is_source;           /* holds the live system we are running from */
+	int cannot_mount;        /* a read-only mount failed (e.g. Windows hibernated or Fast Startup) */
 };
 
 /* Bytes of what gets copied from the live source. */

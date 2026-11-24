@@ -32,6 +32,7 @@ static void setup_machine(void)
 	esp = (struct partition){ .name = "sda1", .disk = "sda", .fs = "vfat", .number = 1, .is_esp = 1 };
 	last_percent = -1;
 	went_back = 0;
+	fake_efivars_mounts = 0;
 }
 
 static void on_progress(void *ctx, const char *step, int percent)
@@ -85,6 +86,7 @@ static void installs_images_and_the_boot_entry(void)
 	CHECK(strstr(text, "--file /lineage/install-0011223344556677.id") != NULL);
 	CHECK(!strstr(text, "pc.previous=1"));
 	CHECK(exists("mnt-sda1/EFI/BOOT/BOOTX64.EFI"));
+	CHECK(fake_efivars_mounts == 1);
 	CHECK(exists("efivars/Boot0000-" EFI_GLOBAL_GUID));
 	CHECK(exists("efivars/BootOrder-" EFI_GLOBAL_GUID));
 

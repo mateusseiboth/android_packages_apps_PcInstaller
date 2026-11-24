@@ -6,6 +6,7 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
+#include <sys/vfs.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -75,8 +76,18 @@ static int linux_make_ext4(const struct sys_env *env, const char *image)
 	return pid > 0 && waitpid(pid, &status, 0) == pid && WIFEXITED(status) && !WEXITSTATUS(status) ? 0 : -1;
 }
 
+#define EFIVARFS_MAGIC 0xde5e81e4
+
+static int linux_mount_efivars(const struct sys_env *env)
+{
+	struct statfs st;
+	if (!statfs(env->efivars, &st) && (unsigned long)st.f_type == EFIVARFS_MAGIC)
+		return 0;
+	return mount("efivarfs", env->efivars, "efivarfs", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL);
+}
+
 static const struct sys_ops LINUX_OPS = { linux_mount, linux_umount, linux_attach_loop, linux_find_loop_backing,
-					  linux_make_ext4 };
+					  linux_make_ext4, linux_mount_efivars };
 
 static const struct sys_env LINUX_ENV = { "/sys", "/dev/block", EFIVARS_DIR, "/mnt/pc-installd",
 					  "/proc/self/mountinfo", "/proc/cmdline", "/system/bin/mke2fs" };
