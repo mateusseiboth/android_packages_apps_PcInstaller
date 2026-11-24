@@ -19,6 +19,7 @@ static void setup_live(void)
 	fake_write("cmdline", "BOOT_IMAGE=/lineage/kernel pc.src=lineage pc.live=1 quiet\n");
 	fake_sh("mkdir -p mnt-sdb1/%1$s && printf 12345678 > mnt-sdb1/%1$s/kernel && printf 1234 > mnt-sdb1/%1$s/initrd.img"
 		" && truncate -s 3G mnt-sdb1/%1$s/system.img && printf 12 > mnt-sdb1/%1$s/grubx64.efi"
+		" && touch mnt-sdb1/%1$s/shimx64.efi mnt-sdb1/%1$s/mmx64.efi mnt-sdb1/%1$s/ENROLL_THIS_KEY_IN_MOKMANAGER.der"
 		" && mkdir -p mnt-sdb1/%1$s/grub-pc/i386-pc && printf 1 > mnt-sdb1/%1$s/grub-pc/boot.img"
 		" && printf 123 > mnt-sdb1/%1$s/grub-pc/core.img && touch mnt-sdb1/%1$s/install-live.id", "lineage");
 	fake_sh("printf 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' > %s", "dev/block/sdb1");
@@ -77,6 +78,20 @@ static void a_source_without_the_files_cannot_be_used(void)
 	fake_teardown();
 }
 
+/* UEFI installs put shim, MokManager and the builder's key next to GRUB. */
+static void a_source_needs_shim_mokmanager_and_the_key(void)
+{
+	static const char *const FILES[] = { "shimx64.efi", "mmx64.efi", "ENROLL_THIS_KEY_IN_MOKMANAGER.der" };
+	for (size_t i = 0; i < sizeof FILES / sizeof *FILES; i++) {
+		setup_live();
+		fake_sh("rm mnt-sdb1/lineage/%s", FILES[i]);
+		struct live_source s;
+		CHECK(!find_live_source(&fake_env, &FAKE_OPS, &s));
+		CHECK(mount_live_source(&fake_env, &FAKE_OPS, &s));
+		fake_teardown();
+	}
+}
+
 static void reads_the_build_of_a_system(void)
 {
 	struct build_info b;
@@ -107,6 +122,7 @@ static void setup_installed(void)
 	fake_sh("mkdir -p mnt-sda3/os/lineage && touch mnt-sda3/os/lineage/install-aaaa.id mnt-sda3/%s", "os/lineage/system.img");
 	fake_sh("mkdir -p mnt-sdb1/%1$s/grub-pc/i386-pc && touch mnt-sdb1/%1$s/kernel mnt-sdb1/%1$s/initrd.img"
 		" mnt-sdb1/%1$s/system.img mnt-sdb1/%1$s/grubx64.efi mnt-sdb1/%1$s/grub-pc/boot.img"
+		" mnt-sdb1/%1$s/shimx64.efi mnt-sdb1/%1$s/mmx64.efi mnt-sdb1/%1$s/ENROLL_THIS_KEY_IN_MOKMANAGER.der"
 		" mnt-sdb1/%1$s/grub-pc/core.img mnt-sdb1/%1$s/install-live.id", "lineage");
 	fake_sh("mkdir -p mnt-loop9/system && printf 'ro.build.date.utc=200\nro.lineage.display.version=new\n' > %s",
 		"mnt-loop9/system/build.prop");
@@ -164,5 +180,6 @@ int main(void)
 	RUN(finds_and_mounts_the_live_source);
 	RUN(an_installed_system_is_not_a_live_source);
 	RUN(a_source_without_the_files_cannot_be_used);
+	RUN(a_source_needs_shim_mokmanager_and_the_key);
 	return CHECK_DONE();
 }

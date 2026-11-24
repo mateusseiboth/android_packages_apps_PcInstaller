@@ -181,8 +181,51 @@ static void reads_whether_secure_boot_is_on(void)
 	remove_dir();
 }
 
+static void vendor_variables_can_be_large(void)
+{
+	make_dir();
+	static unsigned char big[48 * 1024];
+	for (size_t i = 0; i < sizeof big; i++)
+		big[i] = (unsigned char)(i * 7);
+	CHECK(!save_vendor_var(dir, "605dab50-e046-4300-abb6-3dd810dd8b23", "MokListRT", big, sizeof big));
+	char path[160];
+	snprintf(path, sizeof path, "%s/MokListRT-605dab50-e046-4300-abb6-3dd810dd8b23", dir);
+	CHECK(access(path, F_OK) == 0);
+	unsigned char *back = NULL;
+	size_t len = 0;
+	CHECK(!load_vendor_var(dir, "605dab50-e046-4300-abb6-3dd810dd8b23", "MokListRT", &back, &len));
+	CHECK(back && len == sizeof big && !memcmp(back, big, len));
+	free(back);
+	CHECK(load_vendor_var(dir, "605dab50-e046-4300-abb6-3dd810dd8b23", "MokNew", &back, &len));
+	remove_dir();
+}
+
+static void removes_only_the_exact_option(void)
+{
+	make_dir();
+	unsigned char grub[512], shim[512];
+	size_t g = build_load_option(grub, sizeof grub, "LineageOS", &GPT_ESP, "\\EFI\\LineageOS\\grubx64.efi");
+	size_t s = build_load_option(shim, sizeof shim, "LineageOS", &GPT_ESP, "\\EFI\\LineageOS\\shimx64.efi");
+	uint16_t old = 0, now = 0;
+	CHECK(!apply_boot_entry(dir, grub, g, &old) && old == 0);
+	CHECK(!apply_boot_entry(dir, shim, s, &now) && now == 1);
+	CHECK(remove_boot_option(dir, grub, g) == 1);
+	char path[128];
+	snprintf(path, sizeof path, "%s/Boot0000-" EFI_GLOBAL_GUID, dir);
+	CHECK(access(path, F_OK) != 0);
+	snprintf(path, sizeof path, "%s/Boot0001-" EFI_GLOBAL_GUID, dir);
+	CHECK(access(path, F_OK) == 0);
+	unsigned char order[16];
+	size_t len = 0;
+	CHECK(!read_efi_var(dir, "BootOrder", order, sizeof order, &len) && len == 2 && u16_at(order) == 1);
+	CHECK(remove_boot_option(dir, grub, g) == 0);
+	remove_dir();
+}
+
 int main(void)
 {
+	RUN(vendor_variables_can_be_large);
+	RUN(removes_only_the_exact_option);
 	RUN(reads_whether_secure_boot_is_on);
 	RUN(removing_drops_our_entries_and_keeps_the_others);
 	RUN(encodes_an_active_load_option);

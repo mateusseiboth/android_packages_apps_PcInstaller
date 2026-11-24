@@ -68,3 +68,21 @@ int save_text_file(const char *path, const char *text)
 	failed = close(fd) || failed;
 	return failed || rename(tmp, path) ? -1 : 0;
 }
+
+int load_file(const char *path, size_t max, unsigned char **data, size_t *len)
+{
+	int fd = open(path, O_RDONLY | O_CLOEXEC);
+	unsigned char *buf = fd >= 0 ? malloc(max + 1) : NULL;
+	size_t got = 0;
+	for (ssize_t n = 1; buf && n > 0 && got <= max; got += n > 0 ? (size_t)n : 0)
+		n = read(fd, buf + got, max + 1 - got);
+	if (fd >= 0)
+		close(fd);
+	if (!buf || !got || got > max) {
+		free(buf);
+		return -1;
+	}
+	*data = buf;
+	*len = got;
+	return 0;
+}

@@ -11,3 +11,5 @@ int is_file(const char *path);
 int save_text_file(const char *path, const char *text);
 /* mkdir -p */
 int make_dirs(const char *path, unsigned mode);
+/* A whole small file (at most max bytes) into a malloc'd buffer; -1 when missing or larger. */
+int load_file(const char *path, size_t max, unsigned char **data, size_t *len);

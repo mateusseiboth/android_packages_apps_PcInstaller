@@ -2,6 +2,7 @@
 #pragma once
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -121,8 +122,17 @@ static inline int fake_mount_efivars(const struct sys_env *env)
 	return 0;
 }
 
+/* Always 42: the MOK password is 00000042. */
+static inline int fake_fill_random(const struct sys_env *env, void *buf, size_t len)
+{
+	(void)env;
+	memset(buf, 0, len);
+	*(unsigned char *)buf = 42;
+	return 0;
+}
+
 static const struct sys_ops FAKE_OPS = { fake_mount, fake_umount, fake_attach_loop, fake_find_loop_backing,
-					 fake_make_ext4, fake_mount_efivars };
+					 fake_make_ext4, fake_mount_efivars, fake_fill_random };
 
 static inline void fake_setup(void)
 {

@@ -4,7 +4,7 @@
 #include "source.h"
 #include "sysops.h"
 
-#define PROTOCOL_VERSION 2
+#define PROTOCOL_VERSION 3
 #define MAX_PARTITIONS 64
 
 struct server {

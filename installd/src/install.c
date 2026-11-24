@@ -14,17 +14,18 @@
 #include "bootmenu.h"
 #include "disks.h"
 #include "efiboot.h"
+#include "efifiles.h"
 #include "grubcfg.h"
 #include "treecopy.h"
 #include "util.h"
 
 #define DATA_WEIGHT (64ULL << 20)
 #define BOOT_WEIGHT (16ULL << 20)
-#define EFI_DIR "EFI/LineageOS"
 #define BIOS_DIR "pc-grub"
 #define BOOT_DESCRIPTION "LineageOS"
-#define EFI_LOADER "\\EFI\\LineageOS\\grubx64.efi"
-#define FALLBACK_LOADER "EFI/BOOT/BOOTX64.EFI"
+/* shim starts our signed GRUB with Secure Boot on or off; older installs pointed at GRUB itself. */
+#define EFI_LOADER "\\EFI\\LineageOS\\shimx64.efi"
+#define OLD_EFI_LOADER "\\EFI\\LineageOS\\grubx64.efi"
 
 struct run {
 	const struct install_job *job;
@@ -317,45 +318,38 @@ static int save_menu_entries(struct run *r)
 	       apply_menu_entry(r->job->env, r->job->ops, &r->scan, r->job->id, entry);
 }
 
-/* ---- UEFI: GRUB in EFI/LineageOS on the ESP, and a boot entry ------------------------- */
-
-static int save_efi_loader(struct run *r)
-{
-	char dir[PATH_MAX], path[PATH_MAX * 2];
-	build_in(dir, sizeof dir, r->esp, EFI_DIR);
-	snprintf(path, sizeof path, "%s/grubx64.efi", dir);
-	return make_dirs(dir, 0755) || copy_file(in_source(r, "grubx64.efi"), path, NULL, NULL) ? -1 : 0;
-}
-
-/* Firmware that ignores boot entries starts EFI/BOOT/BOOTX64.EFI; only fill it when nobody has. */
-static int save_fallback_loader(struct run *r)
-{
-	char path[PATH_MAX], dir[PATH_MAX];
-	build_in(path, sizeof path, r->esp, FALLBACK_LOADER);
-	build_in(dir, sizeof dir, r->esp, "EFI/BOOT");
-	if (exists(path))
-		return 0;
-	return make_dirs(dir, 0755) || copy_file(in_source(r, "grubx64.efi"), path, NULL, NULL) ? -1 : 0;
-}
+/* ---- UEFI: shim and GRUB in EFI/LineageOS on the ESP, and a boot entry ----------------- */
 
 static int save_boot_entry(struct run *r)
 {
 	struct part_table t;
 	struct efi_disk_location loc;
-	uint8_t option[1024];
+	uint8_t option[1024], old[1024];
 	uint16_t number;
 	if (r->job->ops->mount_efivars(r->job->env))
 		return -1;
 	if (read_part_table(r->job->env, r->job->esp->disk, &t) || find_efi_location(&t, r->job->esp->number, &loc))
 		return -1;
 	size_t n = build_load_option(option, sizeof option, BOOT_DESCRIPTION, &loc, EFI_LOADER);
-	return !n || apply_boot_entry(r->job->env->efivars, option, n, &number) ? -1 : 0;
+	size_t old_n = build_load_option(old, sizeof old, BOOT_DESCRIPTION, &loc, OLD_EFI_LOADER);
+	if (!n || !old_n || remove_boot_option(r->job->env->efivars, old, old_n) < 0)
+		return -1;
+	return apply_boot_entry(r->job->env->efivars, option, n, &number) ? -1 : 0;
+}
+
+/* Firmware that ignores boot entries starts EFI/BOOT/BOOTX64.EFI; we fill it only when free or ours. */
+static int save_esp_loaders(struct run *r)
+{
+	int is_free = is_fallback_free(r->esp);
+	if (save_efi_files(r->job->src->dir, r->esp))
+		return -1;
+	return is_free ? save_fallback_files(r->job->src->dir, r->esp) : 0;
 }
 
 static const char *setup_efi_boot(struct run *r)
 {
 	const struct partition *esp = r->job->esp;
-	if (mount_at(r, esp->name, r->esp, esp->fs, &r->esp_mounted) || save_efi_loader(r) || save_fallback_loader(r))
+	if (mount_at(r, esp->name, r->esp, esp->fs, &r->esp_mounted) || save_esp_loaders(r))
 		return "esp_failed";
 	if (save_boot_entry(r))
 		return "efi_failed";

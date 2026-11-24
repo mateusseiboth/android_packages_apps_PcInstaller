@@ -109,6 +109,18 @@ static int measure_file(const char *dir, const char *name, unsigned long long *o
 	return 0;
 }
 
+/* UEFI: shim, MokManager and the builder's key go next to GRUB. */
+static const char *const EFI_FILES[] = { "shimx64.efi", "mmx64.efi", "ENROLL_THIS_KEY_IN_MOKMANAGER.der" };
+
+static int measure_efi_files(const char *dir)
+{
+	unsigned long long size = 0;
+	for (size_t i = 0; i < sizeof EFI_FILES / sizeof *EFI_FILES; i++)
+		if (measure_file(dir, EFI_FILES[i], &size))
+			return -1;
+	return 0;
+}
+
 /* Everything an install copies: the system, and GRUB for UEFI and for BIOS. */
 static int measure_source(struct live_source *s)
 {
@@ -118,7 +130,7 @@ static int measure_source(struct live_source *s)
 	snprintf(modules, sizeof modules, "%s/grub-pc/i386-pc", s->dir);
 	return measure_file(s->dir, "kernel", &z->kernel) || measure_file(s->dir, "initrd.img", &z->initrd) ||
 			       measure_file(s->dir, "system.img", &z->system) ||
-			       measure_file(s->dir, "grubx64.efi", &z->grub) ||
+			       measure_file(s->dir, "grubx64.efi", &z->grub) || measure_efi_files(s->dir) ||
 			       measure_file(s->dir, "grub-pc/core.img", &z->core) ||
 			       measure_file(s->dir, "grub-pc/boot.img", &boot) || !is_dir(modules)
 		       ? -1

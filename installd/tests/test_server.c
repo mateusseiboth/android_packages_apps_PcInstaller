@@ -1,6 +1,8 @@
 #include <sys/stat.h>
 
 #include "check.h"
+#include "efiboot.h"
+#include "mok.h"
 #include "fakesys.h"
 #include "proto.h"
 #include "server.h"
@@ -35,6 +37,8 @@ static void setup_machine(void)
 	fake_write("cmdline", "pc.src=lineage pc.live=1\n");
 	fake_sh("mkdir -p mnt-sdb1/%1$s && printf K > mnt-sdb1/%1$s/kernel && printf I > mnt-sdb1/%1$s/initrd.img"
 		" && printf G > mnt-sdb1/%1$s/grubx64.efi && truncate -s 1M mnt-sdb1/%1$s/system.img", "lineage");
+	fake_sh("printf S > mnt-sdb1/%1$s/shimx64.efi && printf M > mnt-sdb1/%1$s/mmx64.efi"
+		" && printf DER > mnt-sdb1/%1$s/ENROLL_THIS_KEY_IN_MOKMANAGER.der", "lineage");
 	fake_sh("mkdir -p mnt-sdb1/%1$s/grub-pc/i386-pc && printf B > mnt-sdb1/%1$s/grub-pc/boot.img"
 		" && printf C > mnt-sdb1/%1$s/grub-pc/core.img && touch mnt-sdb1/%1$s/install-live.id", "lineage");
 	fake_backing_major = 8;
@@ -72,12 +76,63 @@ static void info_tells_the_firmware_and_the_source(void)
 	setup_machine();
 	CHECK_STR(send("INFO\n"), "OK\n");
 	CHECK(reply_count == 2);
-	CHECK_STR(field(0, "version"), "2");
+	CHECK_STR(field(0, "version"), "3");
 	CHECK_STR(field(0, "uefi"), "1");
 	CHECK_STR(field(0, "live"), "1");
 	CHECK_STR(field(0, "folder"), "lineage");
 	CHECK_STR(field(0, "system"), "1048576");
 	CHECK_STR(field(0, "secure_boot"), "0");
+	CHECK_STR(field(0, "mok_enrolled"), "0");
+	CHECK_STR(field(0, "mok_queued"), "0");
+	fake_teardown();
+}
+
+/* The key on the live source (the builder's own) is what shim must trust. */
+static void save_moklist(const char *der)
+{
+	uint8_t list[256];
+	size_t n = build_cert_list(list, sizeof list, (const uint8_t *)der, strlen(der));
+	CHECK(!save_vendor_var(fake_env.efivars, SHIM_LOCK_GUID, "MokListRT", list, n));
+}
+
+static void info_tells_whether_shim_trusts_the_key(void)
+{
+	setup_machine();
+	save_moklist("OTHER");
+	send("INFO\n");
+	CHECK_STR(field(0, "mok_enrolled"), "0");
+	save_moklist("DER");
+	send("INFO\n");
+	CHECK_STR(field(0, "mok_enrolled"), "1");
+	fake_teardown();
+}
+
+static void enroll_key_queues_the_key_for_mokmanager(void)
+{
+	setup_machine();
+	CHECK_STR(send("ENROLL_KEY\n"), "OK\n");
+	CHECK(reply_count == 2);
+	CHECK_STR(field(0, "password"), "00000042");
+	uint8_t *list = NULL;
+	size_t len = 0;
+	CHECK(!load_vendor_var(fake_env.efivars, SHIM_LOCK_GUID, "MokNew", &list, &len));
+	CHECK(list && has_cert(list, len, (const uint8_t *)"DER", 3));
+	free(list);
+	send("INFO\n");
+	CHECK_STR(field(0, "mok_queued"), "1");
+	CHECK_STR(field(0, "mok_enrolled"), "0");
+	fake_teardown();
+}
+
+static void enroll_key_needs_the_key_and_uefi(void)
+{
+	setup_machine();
+	fake_sh("rm %s", "mnt-sdb1/lineage/ENROLL_THIS_KEY_IN_MOKMANAGER.der");
+	CHECK_STR(send("ENROLL_KEY\n"), "ERR code=source_missing\n");
+	fake_teardown();
+	setup_machine();
+	fake_sh("rmdir %s", "efivars");
+	CHECK_STR(send("ENROLL_KEY\n"), "ERR code=efi_failed\n");
 	fake_teardown();
 }
 
@@ -233,6 +288,8 @@ static void an_installed_system_updates_from_a_usb_drive(void)
 	CHECK_STR(field(0, "source"), "sdb1");
 	CHECK_STR(field(0, "version"), "24.0-new");
 	CHECK_STR(field(0, "newer"), "1");
+	CHECK_STR(field(0, "mok_enrolled"), "0");
+	CHECK_STR(field(0, "mok_queued"), "0");
 	CHECK_STR(send("INSTALL part=sda3 folder=lineage system=image data=keep\n"), "OK\n");
 	struct stat st;
 	CHECK(!stat(fake_path("mnt-sda3/lineage/system.old.img"), &st));
@@ -264,6 +321,9 @@ int main(void)
 	RUN(the_running_install_cannot_be_removed);
 	RUN(without_a_usb_drive_there_is_no_update);
 	RUN(info_tells_the_firmware_and_the_source);
+	RUN(info_tells_whether_shim_trusts_the_key);
+	RUN(enroll_key_queues_the_key_for_mokmanager);
+	RUN(enroll_key_needs_the_key_and_uefi);
 	RUN(list_describes_each_partition);
 	RUN(a_partition_that_cannot_be_opened_says_so);
 	RUN(check_validates_a_plan);

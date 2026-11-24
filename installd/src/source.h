@@ -39,7 +39,8 @@ int parse_root_device(const char *mountinfo, unsigned *major, unsigned *minor);
 /* 1 when pc.live=1; folder gets pc.src= (default lineage). */
 int parse_live_cmdline(const char *cmdline, char *folder, size_t cap);
 int find_live_source(const struct sys_env *env, const struct sys_ops *ops, struct live_source *out);
-/* Mounts the source and measures kernel, initrd.img, system.img and grubx64.efi; -1 if one is missing. */
+/* Mounts the source and measures what an install copies (kernel, initrd.img, system.img, GRUB, shim,
+ * MokManager, the key); -1 if one is missing. */
 int mount_live_source(const struct sys_env *env, const struct sys_ops *ops, struct live_source *s);
 /* 0 on an installed (not live) system. */
 int find_running_install(const struct sys_env *env, const struct sys_ops *ops, struct running_install *out);

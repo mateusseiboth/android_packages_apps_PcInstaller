@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <sys/vfs.h>
 #include <unistd.h>
 
@@ -117,9 +118,16 @@ int find_free_boot_number(const uint16_t *used, int count)
 
 /* ---- efivarfs ------------------------------------------------------------------------- */
 
+#define MAX_VAR_BYTES (1 << 20)
+
+static void build_vendor_path(char *out, size_t cap, const char *dir, const char *guid, const char *name)
+{
+	snprintf(out, cap, "%s/%s-%s", dir, name, guid);
+}
+
 static void build_var_path(char *out, size_t cap, const char *dir, const char *name)
 {
-	snprintf(out, cap, "%s/%s-%s", dir, name, EFI_GLOBAL_GUID);
+	build_vendor_path(out, cap, dir, EFI_GLOBAL_GUID, name);
 }
 
 /* efivarfs marks variables immutable; writing one needs the flag cleared first. */
@@ -143,38 +151,68 @@ static int find_truncate_flag(const char *dir)
 	return !statfs(dir, &st) && (unsigned long)st.f_type == EFIVARFS_MAGIC ? 0 : O_TRUNC;
 }
 
-int save_efi_var(const char *dir, const char *name, const void *data, size_t len)
+/* efivarfs takes the attributes and the data in one write. */
+int save_vendor_var(const char *dir, const char *guid, const char *name, const void *data, size_t len)
 {
 	char path[512];
-	uint8_t buf[4096];
-	if (len + 4 > sizeof buf)
+	uint8_t *buf = len <= MAX_VAR_BYTES ? malloc(len + 4) : NULL;
+	if (!buf)
 		return -1;
-	build_var_path(path, sizeof path, dir, name);
+	build_vendor_path(path, sizeof path, dir, guid, name);
 	clear_immutable(path);
 	uint32_t attrs = VAR_ATTRIBUTES;
 	memcpy(buf, &attrs, 4);
 	memcpy(buf + 4, data, len);
 	int fd = open(path, O_WRONLY | O_CREAT | O_CLOEXEC | find_truncate_flag(dir), 0644);
-	if (fd < 0)
-		return -1;
-	ssize_t n = write(fd, buf, len + 4);
-	int closed = close(fd);
+	ssize_t n = fd >= 0 ? write(fd, buf, len + 4) : -1;
+	int closed = fd >= 0 ? close(fd) : -1;
+	free(buf);
 	return n == (ssize_t)(len + 4) && !closed ? 0 : -1;
+}
+
+int load_vendor_var(const char *dir, const char *guid, const char *name, uint8_t **data, size_t *len)
+{
+	char path[512];
+	struct stat st;
+	*data = NULL;
+	*len = 0;
+	build_vendor_path(path, sizeof path, dir, guid, name);
+	int fd = open(path, O_RDONLY | O_CLOEXEC);
+	/* efivarfs reports the real size; read up to the cap in case it does not */
+	size_t cap = fd >= 0 && !fstat(fd, &st) && st.st_size > 0 && st.st_size < MAX_VAR_BYTES ? (size_t)st.st_size + 1
+												   : MAX_VAR_BYTES;
+	uint8_t *buf = fd >= 0 ? malloc(cap) : NULL;
+	size_t got = 0;
+	for (ssize_t n = 1; buf && n > 0 && got < cap; got += n > 0 ? (size_t)n : 0)
+		n = read(fd, buf + got, cap - got);
+	if (fd >= 0)
+		close(fd);
+	if (!buf || got < 4) {
+		free(buf);
+		return -1;
+	}
+	memmove(buf, buf + 4, got - 4);
+	*data = buf;
+	*len = got - 4;
+	return 0;
+}
+
+int save_efi_var(const char *dir, const char *name, const void *data, size_t len)
+{
+	return save_vendor_var(dir, EFI_GLOBAL_GUID, name, data, len);
 }
 
 int read_efi_var(const char *dir, const char *name, void *data, size_t cap, size_t *len)
 {
-	char path[512];
-	uint8_t buf[4096];
-	build_var_path(path, sizeof path, dir, name);
-	int fd = open(path, O_RDONLY | O_CLOEXEC);
-	ssize_t n = fd >= 0 ? read(fd, buf, sizeof buf) : -1;
-	if (fd >= 0)
-		close(fd);
-	if (n < 4 || (size_t)n - 4 > cap)
+	uint8_t *buf = NULL;
+	size_t n = 0;
+	if (load_vendor_var(dir, EFI_GLOBAL_GUID, name, &buf, &n) || n > cap) {
+		free(buf);
 		return -1;
-	*len = (size_t)n - 4;
-	memcpy(data, buf + 4, *len);
+	}
+	memcpy(data, buf, n);
+	*len = n;
+	free(buf);
 	return 0;
 }
 
@@ -252,13 +290,31 @@ static int has_description(const uint8_t *option, size_t len, const char *descri
 	return 6 + 2 * i + 1 < len && !option[6 + 2 * i] && !option[7 + 2 * i];
 }
 
-static int remove_boot_var(const char *dir, uint16_t number, const char *description)
+/* Which Boot#### a removal takes: by description, or the exact option. */
+struct boot_match {
+	int (*matches)(const struct boot_match *m, const uint8_t *option, size_t len);
+	const char *description;
+	const uint8_t *option;
+	size_t len;
+};
+
+static int match_description(const struct boot_match *m, const uint8_t *option, size_t len)
+{
+	return has_description(option, len, m->description);
+}
+
+static int match_option(const struct boot_match *m, const uint8_t *option, size_t len)
+{
+	return len == m->len && !memcmp(option, m->option, len);
+}
+
+static int remove_boot_var(const char *dir, uint16_t number, const struct boot_match *m)
 {
 	char name[16], path[512];
 	uint8_t buf[4096];
 	size_t n = 0;
 	snprintf(name, sizeof name, "Boot%04X", number);
-	if (read_efi_var(dir, name, buf, sizeof buf, &n) || !has_description(buf, n, description))
+	if (read_efi_var(dir, name, buf, sizeof buf, &n) || !m->matches(m, buf, n))
 		return 0;
 	build_var_path(path, sizeof path, dir, name);
 	clear_immutable(path);
@@ -280,17 +336,29 @@ static int save_order_without(const char *dir, const uint16_t *removed, int coun
 	return save_efi_var(dir, "BootOrder", order, (size_t)kept * 2);
 }
 
-int remove_boot_entries(const char *dir, const char *description)
+static int remove_matching_entries(const char *dir, const struct boot_match *m)
 {
 	uint16_t used[MAX_BOOT_ENTRIES], removed[MAX_BOOT_ENTRIES];
 	int count = 0, gone = 0;
 	find_boot_entries(dir, (const uint8_t *)"", 0, used, &count);
 	for (int i = 0; i < count; i++)
-		if (remove_boot_var(dir, used[i], description))
+		if (remove_boot_var(dir, used[i], m))
 			removed[gone++] = used[i];
 	if (gone && save_order_without(dir, removed, gone))
 		return -1;
 	return gone;
+}
+
+int remove_boot_entries(const char *dir, const char *description)
+{
+	struct boot_match m = { match_description, description, NULL, 0 };
+	return remove_matching_entries(dir, &m);
+}
+
+int remove_boot_option(const char *dir, const uint8_t *option, size_t len)
+{
+	struct boot_match m = { match_option, NULL, option, len };
+	return remove_matching_entries(dir, &m);
 }
 
 int is_secure_boot_on(const char *dir)

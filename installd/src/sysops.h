@@ -26,6 +26,8 @@ struct sys_ops {
 	int (*make_ext4)(const struct sys_env *env, const char *image);
 	/* Android does not mount efivarfs; this mounts it on env->efivars unless it already is. */
 	int (*mount_efivars)(const struct sys_env *env);
+	/* Random bytes from the kernel (the MOK password). */
+	int (*fill_random)(const struct sys_env *env, void *buf, size_t len);
 };
 
 const struct sys_env *linux_sys_env(void);

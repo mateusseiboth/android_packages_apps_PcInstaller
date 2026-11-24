@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <sys/mount.h>
+#include <sys/random.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #include <sys/vfs.h>
@@ -86,8 +87,14 @@ static int linux_mount_efivars(const struct sys_env *env)
 	return mount("efivarfs", env->efivars, "efivarfs", MS_NOSUID | MS_NODEV | MS_NOEXEC, NULL);
 }
 
+static int linux_fill_random(const struct sys_env *env, void *buf, size_t len)
+{
+	(void)env;
+	return getrandom(buf, len, 0) == (ssize_t)len ? 0 : -1;
+}
+
 static const struct sys_ops LINUX_OPS = { linux_mount, linux_umount, linux_attach_loop, linux_find_loop_backing,
-					  linux_make_ext4, linux_mount_efivars };
+					  linux_make_ext4, linux_mount_efivars, linux_fill_random };
 
 static const struct sys_env LINUX_ENV = { "/sys", "/dev/block", EFIVARS_DIR, "/mnt/pc-installd",
 					  "/proc/self/mountinfo", "/proc/cmdline", "/system/bin/mke2fs",

@@ -1,6 +1,8 @@
 #include "server.h"
 
+#include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/random.h>
 #include <time.h>
@@ -10,6 +12,7 @@
 #include "disks.h"
 #include "efiboot.h"
 #include "install.h"
+#include "mok.h"
 #include "plan.h"
 #include "proto.h"
 #include "util.h"
@@ -122,11 +125,55 @@ static int is_running_install(struct server *s, const char *part, const char *fo
 	return !ensure_running(s) && !strcmp(s->running.part, part) && !strcmp(s->running.folder, folder);
 }
 
+/* ---- the builder's key and shim ------------------------------------------------------ */
+
+#define KEY_FILE "ENROLL_THIS_KEY_IN_MOKMANAGER.der"
+#define MAX_KEY_BYTES (64 * 1024)
+
+struct mok_state {
+	int enrolled, queued;
+};
+
+static int load_source_key(struct server *s, unsigned char **der, size_t *len)
+{
+	char path[PATH_MAX + 64];
+	if (ensure_source(s))
+		return -1;
+	snprintf(path, sizeof path, "%s/" KEY_FILE, s->src.dir);
+	return load_file(path, MAX_KEY_BYTES, der, len);
+}
+
+static int open_efivars(const struct server *s)
+{
+	return is_dir(s->env->efivars) && !s->ops->mount_efivars(s->env) ? 0 : -1;
+}
+
+/* Unknown (no source, no UEFI) reads as not enrolled. */
+static struct mok_state read_mok_state(struct server *s)
+{
+	struct mok_state st = { 0, 0 };
+	unsigned char *der = NULL;
+	size_t len = 0;
+	if (open_efivars(s) || load_source_key(s, &der, &len))
+		return st;
+	st.enrolled = is_mok_enrolled(s->env->efivars, der, len);
+	st.queued = is_mok_queued(s->env->efivars, der, len);
+	free(der);
+	return st;
+}
+
+static void add_mok_fields(struct server *s, struct line *l)
+{
+	struct mok_state st = read_mok_state(s);
+	line_add_u64(l, "mok_enrolled", (unsigned long long)st.enrolled);
+	line_add_u64(l, "mok_queued", (unsigned long long)st.queued);
+}
+
 /* ---- INFO ----------------------------------------------------------------------------- */
 
 static int read_secure_boot(const struct server *s)
 {
-	return is_dir(s->env->efivars) && !s->ops->mount_efivars(s->env) && is_secure_boot_on(s->env->efivars);
+	return !open_efivars(s) && is_secure_boot_on(s->env->efivars);
 }
 
 static const char *find_running_form(struct server *s)
@@ -161,6 +208,7 @@ static const char *handle_info(const struct request *q)
 	line_add_u64(&l, "version", PROTOCOL_VERSION);
 	line_add_u64(&l, "uefi", (unsigned long long)is_dir(s->env->efivars));
 	line_add_u64(&l, "secure_boot", (unsigned long long)read_secure_boot(s));
+	add_mok_fields(s, &l);
 	line_add_u64(&l, "live", (unsigned long long)live);
 	line_add(&l, "source", live ? s->src.name : "");
 	line_add(&l, "folder", live ? s->src.folder : "");
@@ -377,6 +425,36 @@ static const char *handle_find_update(const struct request *q)
 	line_add(&l, "current_version", s->running.build.version);
 	line_add_u64(&l, "current_utc", s->running.build.utc);
 	line_add_u64(&l, "newer", build.utc > s->running.build.utc);
+	add_mok_fields(s, &l);
+	send_line(q, &l);
+	return NULL;
+}
+
+/* ---- ENROLL_KEY: MokManager asks to enroll the source's key on the next start --------- */
+
+static const char *queue_key(struct server *s, const unsigned char *der, size_t len, char *password)
+{
+	uint64_t random = 0;
+	if (open_efivars(s) || s->ops->fill_random(s->env, &random, sizeof random))
+		return "efi_failed";
+	build_mok_password(random, password);
+	return queue_mok_enrollment(s->env->efivars, der, len, password) ? "efi_failed" : NULL;
+}
+
+static const char *handle_enroll_key(const struct request *q)
+{
+	unsigned char *der = NULL;
+	size_t len = 0;
+	char password[MOK_PASSWORD_LEN + 1];
+	if (load_source_key(q->s, &der, &len))
+		return "source_missing";
+	const char *error = queue_key(q->s, der, len, password);
+	free(der);
+	if (error)
+		return error;
+	struct line l;
+	line_begin(&l, "MOK");
+	line_add(&l, "password", password);
 	send_line(q, &l);
 	return NULL;
 }
@@ -389,7 +467,7 @@ static const struct {
 } HANDLERS[] = {
 	{ "INFO", handle_info },	 { "LIST", handle_list },	    { "INSPECT", handle_inspect },
 	{ "CHECK", handle_check },	 { "INSTALL", handle_install },	    { "UNINSTALL", handle_uninstall },
-	{ "FIND_UPDATE", handle_find_update },
+	{ "FIND_UPDATE", handle_find_update }, { "ENROLL_KEY", handle_enroll_key },
 };
 
 static const char *dispatch(const struct request *q)

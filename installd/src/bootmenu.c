@@ -7,15 +7,15 @@
 #include <unistd.h>
 
 #include "biosboot.h"
+#include "efifiles.h"
 #include "menus.h"
 #include "plan.h"
 #include "treecopy.h"
 #include "util.h"
 
 #define OTHERS_MAX (MAX_OTHERS * 640)
-#define FALLBACK_LOADER "EFI/BOOT/BOOTX64.EFI"
 
-static const char *const MENU_DIRS[] = { "pc-grub", "EFI/LineageOS" };
+static const char *const MENU_DIRS[] = { "pc-grub", EFI_MENU_DIR };
 
 const char *find_menu_dir(int is_efi) { return MENU_DIRS[is_efi != 0]; }
 
@@ -145,31 +145,15 @@ int apply_menu_entry(const struct sys_env *env, const struct sys_ops *ops, const
 
 /* ---- removing ------------------------------------------------------------------------- */
 
-static int is_same_file(const char *a, const char *b)
-{
-	FILE *fa = fopen(a, "rb"), *fb = fopen(b, "rb");
-	int same = fa && fb;
-	for (int ca = 0, cb = 0; same && ca != EOF; same = ca == cb) {
-		ca = fgetc(fa);
-		cb = fgetc(fb);
-	}
-	if (fa)
-		fclose(fa);
-	if (fb)
-		fclose(fb);
-	return same;
-}
-
-/* The fallback loader goes only when it is our GRUB. */
+/* The fallback loader goes only when it is ours. */
 static int remove_efi_menu(const struct sys_env *env, const struct menu_place *place, const char *dir)
 {
 	(void)env;
 	(void)place;
-	char ours[PATH_MAX], fallback[PATH_MAX];
-	snprintf(ours, sizeof ours, "%s/grubx64.efi", dir);
-	snprintf(fallback, sizeof fallback, "%.*s/" FALLBACK_LOADER, (int)(strlen(dir) - strlen("/EFI/LineageOS")), dir);
-	if (is_same_file(ours, fallback))
-		unlink(fallback);
+	char esp[PATH_MAX];
+	snprintf(esp, sizeof esp, "%.*s", (int)(strlen(dir) - strlen("/" EFI_MENU_DIR)), dir);
+	if (is_our_fallback(esp))
+		remove_fallback_files(esp);
 	return remove_tree(dir);
 }
 

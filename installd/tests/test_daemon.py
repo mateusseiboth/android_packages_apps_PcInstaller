@@ -54,8 +54,11 @@ class SocketTest(unittest.TestCase):
 
     def test_answers_each_request_on_one_connection(self):
         replies = self.talk("INFO", "LIST", "FORMAT")
-        self.assertTrue(replies[0].startswith("INFO version=2 uefi=0 secure_boot=0 live=0"))
+        self.assertTrue(replies[0].startswith("INFO version=3 uefi=0 secure_boot=0 mok_enrolled=0 mok_queued=0 live=0"))
         self.assertEqual(replies[1:], ["OK", "OK", "ERR code=bad_request"])
+
+    def test_enroll_key_needs_the_live_source(self):
+        self.assertEqual(self.talk("ENROLL_KEY"), ["ERR code=source_missing"])
 
     def test_a_new_connection_after_the_first_one_closes(self):
         self.talk("INFO")

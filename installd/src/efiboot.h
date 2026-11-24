@@ -25,11 +25,17 @@ size_t build_load_option(uint8_t *out, size_t cap, const char *description, cons
 int apply_boot_first(uint16_t *order, int count, int max, uint16_t number);
 int find_free_boot_number(const uint16_t *used, int count);
 
+/* A variable of any vendor: <dir>/<name>-<guid>, 4 bytes of attributes (NV|BS|RT) then the data. */
+int save_vendor_var(const char *dir, const char *guid, const char *name, const void *data, size_t len);
+/* data gets a malloc'd copy without the attributes (free it); -1 when missing. */
+int load_vendor_var(const char *dir, const char *guid, const char *name, uint8_t **data, size_t *len);
 int save_efi_var(const char *dir, const char *name, const void *data, size_t len);
 int read_efi_var(const char *dir, const char *name, void *data, size_t cap, size_t *len);
 /* Reuses a Boot#### holding the same option, else takes a free number; then updates BootOrder. */
 int apply_boot_entry(const char *dir, const uint8_t *option, size_t len, uint16_t *number);
-/* Secure Boot on: firmware will refuse our unsigned GRUB until it is turned off. */
+/* Secure Boot on: the firmware starts only signed loaders (our shim is). */
 int is_secure_boot_on(const char *dir);
 /* Deletes every Boot#### whose description is description and drops it from BootOrder; returns how many. */
 int remove_boot_entries(const char *dir, const char *description);
+/* Deletes every Boot#### holding exactly option; returns how many. */
+int remove_boot_option(const char *dir, const uint8_t *option, size_t len);
