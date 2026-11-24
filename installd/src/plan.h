@@ -28,6 +28,8 @@ struct plan_result {
 };
 
 const struct fs_rule *find_fs_rule(const char *type);
+/* The kernel's name for a probed file system (ntfs is mounted with ntfs3). */
+const char *find_mount_type(const char *fs);
 int is_valid_folder(const char *folder);
 /* 0 when the plan can run; else -1 with out->error set. */
 int validate_plan(const struct plan_request *r, const struct partition *p, const struct source_sizes *src,

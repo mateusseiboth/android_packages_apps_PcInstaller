@@ -27,6 +27,12 @@ const struct fs_rule *find_fs_rule(const char *type)
 	return &UNSUPPORTED;
 }
 
+const char *find_mount_type(const char *fs)
+{
+	const char *type = find_fs_rule(fs)->mount_type;
+	return type ? type : fs;
+}
+
 /* ---- folder name ---------------------------------------------------------------------- */
 
 static int has_only_safe_chars(const char *f)
