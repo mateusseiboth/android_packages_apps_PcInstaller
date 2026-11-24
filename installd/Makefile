@@ -20,8 +20,9 @@ $(BUILD)/pc-installd: src/main.c $(CORE) $(wildcard src/*.h) | $(BUILD)
 $(BUILD)/test_%: tests/test_%.c $(CORE) $(wildcard src/*.h) tests/check.h | $(BUILD)
 	$(CC) $(CFLAGS) -o $@ $< $(CORE)
 
-test: $(TESTS)
+test: $(TESTS) $(BUILD)/pc-installd
 	@set -e; for t in $(TESTS); do echo "== $$t"; $$t; done
+	python3 -m unittest discover -s tests -p 'test_*.py'
 
 clean:
 	rm -rf $(BUILD)
