@@ -9,7 +9,7 @@
 #include "treecopy.h"
 
 static char fake_root[64];
-static char fake_paths[7][160];
+static char fake_paths[8][160];
 static struct sys_env fake_env;
 
 static inline const char *fake_path(const char *rel)
@@ -129,11 +129,12 @@ static inline void fake_setup(void)
 	snprintf(fake_root, sizeof fake_root, "/tmp/fakesys-XXXXXX");
 	if (!mkdtemp(fake_root))
 		abort();
-	static const char *const RELS[] = { "sys", "dev/block", "efivars", "work", "mountinfo", "cmdline", "mke2fs" };
-	for (int i = 0; i < 7; i++)
+	static const char *const RELS[] = { "sys", "dev/block", "efivars", "work", "mountinfo", "cmdline", "mke2fs",
+					    "build.prop" };
+	for (int i = 0; i < 8; i++)
 		snprintf(fake_paths[i], sizeof fake_paths[i], "%s/%s", fake_root, RELS[i]);
 	fake_env = (struct sys_env){ fake_paths[0], fake_paths[1], fake_paths[2], fake_paths[3],
-				     fake_paths[4], fake_paths[5], fake_paths[6] };
+				     fake_paths[4], fake_paths[5], fake_paths[6], fake_paths[7] };
 	fake_sh("mkdir -p sys/class/block dev/block efivars work && touch %s", "mountinfo");
 }
 

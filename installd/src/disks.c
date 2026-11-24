@@ -61,6 +61,16 @@ static void probe_partition(const struct sys_env *env, struct partition *p)
 	probe_fs(buf, n > 0 ? (size_t)n : 0, &fs);
 	snprintf(p->fs, sizeof p->fs, "%s", fs.type);
 	snprintf(p->label, sizeof p->label, "%s", fs.label);
+	snprintf(p->uuid, sizeof p->uuid, "%s", fs.uuid);
+}
+
+unsigned read_block_size(const struct sys_env *env, const char *disk)
+{
+	char path[PATH_MAX];
+	unsigned long long lbs = 512;
+	snprintf(path, sizeof path, "%s/class/block/%s/queue/logical_block_size", env->sysfs, disk);
+	read_u64(path, &lbs);
+	return (unsigned)lbs;
 }
 
 int read_part_table(const struct sys_env *env, const char *disk, struct part_table *t)

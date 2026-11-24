@@ -149,8 +149,30 @@ static void works_without_a_boot_order(void)
 	remove_dir();
 }
 
+static void removing_drops_our_entries_and_keeps_the_others(void)
+{
+	make_dir();
+	put_var("Boot0000", "windows", 7);
+	unsigned char opt[512];
+	size_t n = build_load_option(opt, sizeof opt, "LineageOS", &GPT_ESP, "\\EFI\\LineageOS\\grubx64.efi");
+	uint16_t number = 0;
+	CHECK(!apply_boot_entry(dir, opt, n, &number) && number == 1);
+	CHECK(remove_boot_entries(dir, "LineageOS") == 1);
+	char path[128];
+	snprintf(path, sizeof path, "%s/Boot0001-" EFI_GLOBAL_GUID, dir);
+	CHECK(access(path, F_OK) != 0);
+	snprintf(path, sizeof path, "%s/Boot0000-" EFI_GLOBAL_GUID, dir);
+	CHECK(access(path, F_OK) == 0);
+	unsigned char order[16];
+	size_t len = 0;
+	CHECK(!read_efi_var(dir, "BootOrder", order, sizeof order, &len) && len == 0);
+	CHECK(remove_boot_entries(dir, "LineageOS") == 0);
+	remove_dir();
+}
+
 int main(void)
 {
+	RUN(removing_drops_our_entries_and_keeps_the_others);
 	RUN(encodes_an_active_load_option);
 	RUN(a_small_buffer_gives_zero);
 	RUN(the_new_entry_boots_first_and_appears_once);

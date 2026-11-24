@@ -242,6 +242,22 @@ int copy_tree(const char *src, const char *dst, copy_progress progress, void *ct
 	return failed;
 }
 
+int copy_flat_dir(const char *src, const char *dst)
+{
+	DIR *d = opendir(src);
+	int failed = !d;
+	for (struct dirent *e; !failed && (e = readdir(d));) {
+		char from[PATH_MAX], to[PATH_MAX];
+		struct stat st;
+		snprintf(from, sizeof from, "%s/%s", src, e->d_name);
+		snprintf(to, sizeof to, "%s/%s", dst, e->d_name);
+		failed = !stat(from, &st) && S_ISREG(st.st_mode) && copy_file(from, to, NULL, NULL);
+	}
+	if (d)
+		closedir(d);
+	return failed ? -1 : 0;
+}
+
 /* ---- measure and remove --------------------------------------------------------------- */
 
 static unsigned long long measure_entry(const char *path, struct inode_set *seen)

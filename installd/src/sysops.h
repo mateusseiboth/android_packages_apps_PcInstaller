@@ -13,6 +13,7 @@ struct sys_env {
 	const char *mountinfo; /* /proc/self/mountinfo */
 	const char *cmdline;   /* /proc/cmdline */
 	const char *mke2fs;    /* /system/bin/mke2fs */
+	const char *build_prop; /* /system/build.prop of the running system */
 };
 
 struct sys_ops {

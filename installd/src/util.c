@@ -55,3 +55,16 @@ int make_dirs(const char *path, unsigned mode)
 	}
 	return mkdir(buf, mode) && errno != EEXIST ? -1 : 0;
 }
+
+int save_text_file(const char *path, const char *text)
+{
+	char tmp[PATH_MAX];
+	snprintf(tmp, sizeof tmp, "%s.tmp", path);
+	int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+	if (fd < 0)
+		return -1;
+	ssize_t n = write(fd, text, strlen(text));
+	int failed = n != (ssize_t)strlen(text) || fsync(fd);
+	failed = close(fd) || failed;
+	return failed || rename(tmp, path) ? -1 : 0;
+}

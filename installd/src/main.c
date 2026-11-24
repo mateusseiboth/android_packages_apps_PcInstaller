@@ -5,7 +5,7 @@
  *   pc-installd                             serve on init's socket (/dev/socket/pc_installd)
  *   pc-installd --socket PATH [--root DIR]  serve on PATH; DIR replaces /sys, /dev/block, ... (host trials)
  *   pc-installd --cmdline FOLDER EXTRA      print an installed system's kernel command line
- *   pc-installd --grub-cfg FOLDER ID [previous]  print its grub.cfg
+ *   pc-installd --grub-entry FOLDER ID TITLE [previous]  print its GRUB menu entry
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -96,10 +96,10 @@ static int open_path_socket(const char *path)
 static struct sys_env build_root_env(const char *root)
 {
 	static char paths[7][512];
-	static const char *const RELS[] = { "sys", "dev/block", "efivars", "work", "mountinfo", "cmdline" };
-	for (int i = 0; i < 6; i++)
+	static const char *const RELS[] = { "sys", "dev/block", "efivars", "work", "mountinfo", "cmdline", "build.prop" };
+	for (int i = 0; i < 7; i++)
 		snprintf(paths[i], sizeof paths[i], "%s/%s", root, RELS[i]);
-	return (struct sys_env){ paths[0], paths[1], paths[2], paths[3], paths[4], paths[5], "mke2fs" };
+	return (struct sys_env){ paths[0], paths[1], paths[2], paths[3], paths[4], paths[5], "mke2fs", paths[6] };
 }
 
 static const char *find_option(int argc, char **argv, const char *name)
@@ -142,13 +142,13 @@ static int print_cmdline(int argc, char **argv)
 	return 0;
 }
 
-static int print_grub_cfg(int argc, char **argv)
+static int print_grub_entry(int argc, char **argv)
 {
-	char cfg[8192];
-	struct grub_params p = { argv[2], argv[3], argc > 4 && !strcmp(argv[4], "previous") };
-	if (build_grub_cfg(cfg, sizeof cfg, &p))
+	char entry[8192];
+	struct entry_params p = { argv[2], argv[3], argv[4], argc > 5 && !strcmp(argv[5], "previous") };
+	if (build_install_entry(entry, sizeof entry, &p))
 		return 1;
-	fputs(cfg, stdout);
+	fputs(entry, stdout);
 	return 0;
 }
 
@@ -158,7 +158,7 @@ static const struct {
 	int (*run)(int, char **);
 } MODES[] = {
 	{ "--cmdline", 4, print_cmdline },
-	{ "--grub-cfg", 4, print_grub_cfg },
+	{ "--grub-entry", 5, print_grub_entry },
 };
 
 int main(int argc, char **argv)

@@ -90,7 +90,8 @@ static const struct sys_ops LINUX_OPS = { linux_mount, linux_umount, linux_attac
 					  linux_make_ext4, linux_mount_efivars };
 
 static const struct sys_env LINUX_ENV = { "/sys", "/dev/block", EFIVARS_DIR, "/mnt/pc-installd",
-					  "/proc/self/mountinfo", "/proc/cmdline", "/system/bin/mke2fs" };
+					  "/proc/self/mountinfo", "/proc/cmdline", "/system/bin/mke2fs",
+					  "/system/build.prop" };
 
 const struct sys_env *linux_sys_env(void) { return &LINUX_ENV; }
 const struct sys_ops *linux_sys_ops(void) { return &LINUX_OPS; }

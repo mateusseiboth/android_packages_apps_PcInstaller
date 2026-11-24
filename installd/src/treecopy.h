@@ -9,6 +9,8 @@ typedef void (*copy_progress)(void *ctx, unsigned long long bytes);
 
 int copy_file(const char *src, const char *dst, copy_progress progress, void *ctx);
 int copy_tree(const char *src, const char *dst, copy_progress progress, void *ctx);
+/* Copies the regular files of a flat directory (contents only: FAT and NTFS hold no owners). */
+int copy_flat_dir(const char *src, const char *dst);
 /* Bytes of the regular files under dir, hardlinked files once. */
 unsigned long long measure_tree(const char *dir);
 /* Removes a file or a directory tree; a missing path is not an error. */

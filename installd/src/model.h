@@ -6,6 +6,7 @@ struct partition {
 	char disk[32];  /* sda, nvme0n1 */
 	char fs[16];    /* see fsprobe.h */
 	char label[64];
+	char uuid[40];  /* as GRUB's search --fs-uuid wants it; empty when unknown */
 	unsigned long long size;
 	unsigned long long free; /* 0 when it could not be mounted to measure */
 	int number;              /* partition number on its disk */
@@ -16,7 +17,7 @@ struct partition {
 
 /* Bytes of what gets copied from the live source. */
 struct source_sizes {
-	unsigned long long kernel, initrd, system, grub;
+	unsigned long long kernel, initrd, system, grub, core; /* core: GRUB's BIOS core.img */
 };
 
 /* What already sits in <partition>/<folder>. */
@@ -24,6 +25,8 @@ struct install_state {
 	int has_system;
 	int has_data;
 	unsigned long long old_system_bytes; /* system.old.img or system.old/, removed by an update */
+	int is_image;                        /* system.img rather than system/ */
+	char id[24];                         /* from install-<id>.id; an update keeps it */
 };
 
 /* How this computer boots. */

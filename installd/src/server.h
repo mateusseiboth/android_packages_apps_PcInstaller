@@ -4,7 +4,7 @@
 #include "source.h"
 #include "sysops.h"
 
-#define PROTOCOL_VERSION 1
+#define PROTOCOL_VERSION 2
 #define MAX_PARTITIONS 64
 
 struct server {
@@ -12,6 +12,8 @@ struct server {
 	const struct sys_ops *ops;
 	struct live_source src;
 	int src_state; /* 0 not looked yet, 1 mounted, -1 missing */
+	struct running_install running;
+	int running_state; /* 0 not looked yet, 1 an installed system, -1 the live system */
 	struct partition parts[MAX_PARTITIONS];
 	int count;
 };

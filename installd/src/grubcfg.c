@@ -1,24 +1,12 @@
 #include "grubcfg.h"
 
 #include <stdio.h>
+#include <string.h>
 
 /* androidboot.selinux=permissive until the vendor policy is complete. */
 #define BASE_CMDLINE                                                                                \
 	"androidboot.hardware=pc androidboot.selinux=permissive firmware_class.path=/vendor/firmware " \
 	"console=tty0 loglevel=4"
-
-static int is_always(const struct grub_params *p) { (void)p; return 1; }
-static int has_previous(const struct grub_params *p) { return p->has_previous; }
-
-static const struct {
-	const char *title;
-	const char *extra;
-	int (*is_wanted)(const struct grub_params *);
-} ENTRIES[] = {
-	{ "LineageOS", "quiet", is_always },
-	{ "LineageOS (safe graphics)", "nomodeset", is_always },
-	{ "LineageOS (previous system)", "pc.previous=1 quiet", has_previous },
-};
 
 void build_kernel_cmdline(char *out, size_t cap, const char *folder, const char *extra)
 {
@@ -29,6 +17,8 @@ void build_id_file(char *out, size_t cap, const char *folder, const char *id)
 {
 	snprintf(out, cap, "%s/install-%s.id", folder, id);
 }
+
+/* ---- writer --------------------------------------------------------------------------- */
 
 struct writer {
 	char *out;
@@ -43,27 +33,102 @@ static void put(struct writer *w, const char *text)
 	w->len = w->overflow ? w->len : w->len + (size_t)n;
 }
 
-static void put_entry(struct writer *w, const struct grub_params *p, const char *title, const char *extra)
+static int finish(const struct writer *w) { return w->overflow ? -1 : 0; }
+
+/* Labels come from the disks: no quote, dollar or backslash may reach GRUB's parser. */
+static void build_title(char *out, size_t cap, const char *format, const char *place)
 {
-	char args[256], cmdline[1024], text[1536];
-	snprintf(args, sizeof args, "pc.id=%s %s", p->id, extra);
+	char safe[96];
+	snprintf(safe, sizeof safe, "%s", place);
+	for (char *c = safe; *c; c++)
+		*c = strchr("\"$\\", *c) ? '_' : *c;
+	snprintf(out, cap, format, safe);
+}
+
+/* ---- an install's entry --------------------------------------------------------------- */
+
+static int is_always(const struct entry_params *p) { (void)p; return 1; }
+static int has_previous(const struct entry_params *p) { return p->has_previous; }
+
+/* The first variant is the main entry; the others go in its "more options" submenu. */
+static const struct {
+	const char *title;
+	const char *extra;
+	int (*is_wanted)(const struct entry_params *);
+} VARIANTS[] = {
+	{ "LineageOS (%s)", "quiet", is_always },
+	{ "LineageOS (%s), safe graphics", "nomodeset", is_always },
+	{ "LineageOS (%s), previous system", "pc.previous=1 quiet", has_previous },
+};
+
+static void put_variant(struct writer *w, const struct entry_params *p, size_t i, const char *indent)
+{
+	char title[160], args[256], cmdline[1024], id_file[256], text[2048];
+	build_title(title, sizeof title, VARIANTS[i].title, p->title);
+	snprintf(args, sizeof args, "pc.id=%s %s", p->id, VARIANTS[i].extra);
 	build_kernel_cmdline(cmdline, sizeof cmdline, p->folder, args);
-	snprintf(text, sizeof text, "menuentry \"%s\" {\n    linux /%s/kernel %s\n    initrd /%s/initrd.img\n}\n\n",
-		 title, p->folder, cmdline, p->folder);
+	build_id_file(id_file, sizeof id_file, p->folder, p->id);
+	snprintf(text, sizeof text,
+		 "%1$smenuentry \"%2$s\"%3$s%4$s {\n"
+		 "%1$s    search --no-floppy --set=root --file /%5$s\n"
+		 "%1$s    linux /%6$s/kernel %7$s\n"
+		 "%1$s    initrd /%6$s/initrd.img\n"
+		 "%1$s}\n",
+		 indent, title, i ? "" : " --id lineage-", i ? "" : p->id, id_file, p->folder, cmdline);
 	put(w, text);
 }
 
-int build_grub_cfg(char *out, size_t cap, const struct grub_params *p)
+int build_install_entry(char *out, size_t cap, const struct entry_params *p)
 {
 	struct writer w = { out, cap, 0, 0 };
-	char id_file[256], search[384];
-	build_id_file(id_file, sizeof id_file, p->folder, p->id);
-	snprintf(search, sizeof search, "search --no-floppy --set=root --file /%s\n\n", id_file);
-	put(&w, "# Written by pc-installd; rewritten on every install or update.\n"
-		"set timeout=5\nset default=0\n");
-	put(&w, search);
-	for (size_t i = 0; i < sizeof ENTRIES / sizeof *ENTRIES; i++)
-		if (ENTRIES[i].is_wanted(p))
-			put_entry(&w, p, ENTRIES[i].title, ENTRIES[i].extra);
-	return w.overflow ? -1 : 0;
+	char title[160], text[256];
+	put_variant(&w, p, 0, "");
+	build_title(title, sizeof title, "LineageOS (%s): more options", p->title);
+	snprintf(text, sizeof text, "submenu \"%s\" --id lineage-%s-more {\n", title, p->id);
+	put(&w, text);
+	for (size_t i = 1; i < sizeof VARIANTS / sizeof *VARIANTS; i++)
+		if (VARIANTS[i].is_wanted(p))
+			put_variant(&w, p, i, "    ");
+	put(&w, "}\n");
+	return finish(&w);
+}
+
+/* ---- other systems -------------------------------------------------------------------- */
+
+static const char *const OTHER_COMMANDS[] = {
+	[OTHER_EFI] = "chainloader %s",
+	[OTHER_BOOT_SECTOR] = "chainloader +1",
+	[OTHER_CONFIGFILE] = "configfile %s",
+};
+
+int build_other_entry(char *out, size_t cap, const struct other_system *o)
+{
+	struct writer w = { out, cap, 0, 0 };
+	char title[160], command[256], text[640];
+	build_title(title, sizeof title, "%s", o->title);
+	snprintf(command, sizeof command, OTHER_COMMANDS[o->kind], o->loader);
+	snprintf(text, sizeof text, "menuentry \"%s\" {\n    search --no-floppy --set=root --fs-uuid %s\n    %s\n}\n\n",
+		 title, o->uuid, command);
+	put(&w, text);
+	return finish(&w);
+}
+
+/* ---- the menu ------------------------------------------------------------------------- */
+
+int build_menu(char *out, size_t cap, const struct menu_params *m)
+{
+	struct writer w = { out, cap, 0, 0 };
+	char header[256];
+	snprintf(header, sizeof header,
+		 "# Written by pc-installd; rebuilt on every install, update or removal.\n"
+		 "set timeout=5\nset default=lineage-%s\n\n", m->default_id);
+	put(&w, header);
+	for (int i = 0; i < m->count; i++) {
+		put(&w, m->entries[i]);
+		put(&w, "\n");
+	}
+	put(&w, m->others);
+	if (m->is_efi)
+		put(&w, "menuentry \"UEFI firmware settings\" {\n    fwsetup\n}\n");
+	return finish(&w);
 }

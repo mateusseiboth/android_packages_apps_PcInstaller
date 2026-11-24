@@ -6,6 +6,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "biosboot.h"
 #include "disks.h"
 #include "install.h"
 #include "plan.h"
@@ -28,10 +29,10 @@ void server_init(struct server *s, const struct sys_env *env, const struct sys_o
 
 static void send_line(const struct request *q, struct line *l) { q->reply(q->ctx, line_end(l)); }
 
-static void send_ok(const struct request *q)
+static void send_word(const struct request *q, const char *word)
 {
 	struct line l;
-	line_begin(&l, "OK");
+	line_begin(&l, word);
 	send_line(q, &l);
 }
 
@@ -52,6 +53,13 @@ static int ensure_source(struct server *s)
 	return s->src_state > 0 ? 0 : -1;
 }
 
+static int ensure_running(struct server *s)
+{
+	if (!s->running_state)
+		s->running_state = find_running_install(s->env, s->ops, &s->running) ? -1 : 1;
+	return s->running_state > 0 ? 0 : -1;
+}
+
 static void refresh_partitions(struct server *s)
 {
 	s->count = find_partitions(s->env, s->ops, s->parts, MAX_PARTITIONS);
@@ -67,13 +75,76 @@ static const struct partition *find_requested(const struct request *q)
 	return name ? find_partition(q->s->parts, q->s->count, name) : NULL;
 }
 
+static int has_boot_room(const struct server *s, const struct partition *target)
+{
+	struct part_table t;
+	uint64_t start = 0, sectors = (s->src.sizes.core + 511) / 512;
+	return !read_part_table(s->env, target->disk, &t) &&
+	       !find_core_place(&t, read_block_size(s->env, target->disk), sectors, &start);
+}
+
 static struct machine read_machine(const struct server *s, const struct partition *target)
 {
 	return (struct machine){ .is_uefi = is_dir(s->env->efivars),
-				 .has_esp = target && find_esp(s->parts, s->count, target) != NULL };
+				 .has_esp = find_esp(s->parts, s->count, target) != NULL,
+				 .has_boot_room = has_boot_room(s, target) };
+}
+
+/* ---- looking into an install folder --------------------------------------------------- */
+
+static int inspect_target(struct server *s, const struct partition *p, const char *folder, struct install_state *out)
+{
+	char dev[512], dir[512], path[1024];
+	*out = (struct install_state){ 0 };
+	snprintf(dev, sizeof dev, "%s/%s", s->env->dev_dir, p->name);
+	snprintf(dir, sizeof dir, "%s/target", s->env->work);
+	make_dirs(dir, 0700);
+	if (s->ops->mount(s->env, dev, dir, find_mount_type(p->fs), 1))
+		return -1;
+	snprintf(path, sizeof path, "%s/%s", dir, folder);
+	read_install_state(path, out);
+	s->ops->umount(s->env, dir);
+	return 0;
+}
+
+static const char *find_target(const struct request *q, const struct partition **p, const char **folder)
+{
+	*p = find_requested(q);
+	*folder = find_field(q->m, "folder");
+	if (!*p)
+		return "unknown_partition";
+	return *folder && is_valid_folder(*folder) ? NULL : "bad_folder";
+}
+
+static int is_running_install(struct server *s, const char *part, const char *folder)
+{
+	return !ensure_running(s) && !strcmp(s->running.part, part) && !strcmp(s->running.folder, folder);
 }
 
 /* ---- INFO ----------------------------------------------------------------------------- */
+
+static const char *find_running_form(struct server *s)
+{
+	struct install_state st;
+	const struct partition *p;
+	if (!s->count)
+		refresh_partitions(s);
+	p = find_partition(s->parts, s->count, s->running.part);
+	if (!p || inspect_target(s, p, s->running.folder, &st))
+		return "";
+	return st.is_image ? "image" : "folder";
+}
+
+static void add_running_fields(struct server *s, struct line *l)
+{
+	int installed = !ensure_running(s);
+	line_add_u64(l, "installed", (unsigned long long)installed);
+	line_add(l, "install_part", installed ? s->running.part : "");
+	line_add(l, "install_folder", installed ? s->running.folder : "");
+	line_add(l, "install_system", installed ? find_running_form(s) : "");
+	line_add(l, "install_version", installed ? s->running.build.version : "");
+	line_add_u64(l, "install_build_utc", installed ? s->running.build.utc : 0);
+}
 
 static const char *handle_info(const struct request *q)
 {
@@ -89,6 +160,7 @@ static const char *handle_info(const struct request *q)
 	line_add_u64(&l, "kernel", live ? s->src.sizes.kernel : 0);
 	line_add_u64(&l, "initrd", live ? s->src.sizes.initrd : 0);
 	line_add_u64(&l, "system", live ? s->src.sizes.system : 0);
+	add_running_fields(s, &l);
 	send_line(q, &l);
 	return NULL;
 }
@@ -134,30 +206,6 @@ static const char *handle_list(const struct request *q)
 
 /* ---- INSPECT -------------------------------------------------------------------------- */
 
-static int inspect_target(struct server *s, const struct partition *p, const char *folder, struct install_state *out)
-{
-	char dev[512], dir[512], path[1024];
-	*out = (struct install_state){ 0 };
-	snprintf(dev, sizeof dev, "%s/%s", s->env->dev_dir, p->name);
-	snprintf(dir, sizeof dir, "%s/target", s->env->work);
-	make_dirs(dir, 0700);
-	if (s->ops->mount(s->env, dev, dir, find_mount_type(p->fs), 1))
-		return -1;
-	snprintf(path, sizeof path, "%s/%s", dir, folder);
-	read_install_state(path, out);
-	s->ops->umount(s->env, dir);
-	return 0;
-}
-
-static const char *find_target(const struct request *q, const struct partition **p, const char **folder)
-{
-	*p = find_requested(q);
-	*folder = find_field(q->m, "folder");
-	if (!*p)
-		return "unknown_partition";
-	return *folder && is_valid_folder(*folder) ? NULL : "bad_folder";
-}
-
 static const char *handle_inspect(const struct request *q)
 {
 	const struct partition *p;
@@ -182,6 +230,8 @@ static const char *handle_inspect(const struct request *q)
 struct checked {
 	const struct partition *target;
 	struct plan_request req;
+	struct install_state state;
+	struct machine machine;
 	struct plan_result plan;
 };
 
@@ -195,7 +245,7 @@ static void read_request(const struct msg *m, struct plan_request *r)
 
 static const char *check_request(const struct request *q, struct checked *c)
 {
-	struct install_state st = { 0 };
+	*c = (struct checked){ 0 };
 	read_request(q->m, &c->req);
 	if (ensure_source(q->s))
 		return "source_missing";
@@ -203,10 +253,11 @@ static const char *check_request(const struct request *q, struct checked *c)
 	if (!c->target)
 		return "unknown_partition";
 	int can_look = is_valid_folder(c->req.folder) && !find_fs_rule(c->target->fs)->reason && !c->target->is_source;
-	if (can_look && inspect_target(q->s, c->target, c->req.folder, &st))
+	if (can_look && inspect_target(q->s, c->target, c->req.folder, &c->state))
 		return "mount_failed";
-	struct machine m = read_machine(q->s, c->target);
-	return validate_plan(&c->req, c->target, &q->s->src.sizes, &st, &m, &c->plan) ? c->plan.error : NULL;
+	c->machine = read_machine(q->s, c->target);
+	return validate_plan(&c->req, c->target, &q->s->src.sizes, &c->state, &c->machine, &c->plan) ? c->plan.error
+												    : NULL;
 }
 
 static const char *handle_check(const struct request *q)
@@ -215,12 +266,14 @@ static const char *handle_check(const struct request *q)
 	const char *error = check_request(q, &c);
 	if (error)
 		return error;
+	const struct partition *esp = find_esp(q->s->parts, q->s->count, c.target);
 	struct line l;
 	line_begin(&l, "PLAN");
 	line_add(&l, "mode", c.plan.mode);
 	line_add_u64(&l, "need", c.plan.need);
 	line_add_u64(&l, "free", c.target->free);
-	line_add(&l, "esp", find_esp(q->s->parts, q->s->count, c.target)->name);
+	line_add(&l, "boot", c.machine.is_uefi ? "uefi" : "bios");
+	line_add(&l, "esp", c.machine.is_uefi && esp ? esp->name : "");
 	send_line(q, &l);
 	return NULL;
 }
@@ -235,9 +288,14 @@ static void on_progress(void *ctx, const char *step, int percent)
 	send_line(q, &l);
 }
 
-static void build_install_id(char *out, size_t cap)
+/* An update keeps the install's id, so its menu entry is replaced rather than doubled. */
+static void build_install_id(const struct install_state *st, char *out, size_t cap)
 {
 	unsigned char bytes[8];
+	if (*st->id) {
+		snprintf(out, cap, "%s", st->id);
+		return;
+	}
 	if (getrandom(bytes, sizeof bytes, 0) != sizeof bytes) {
 		unsigned long long t = (unsigned long long)time(NULL) ^ (unsigned long long)getpid() << 32;
 		memcpy(bytes, &t, sizeof bytes);
@@ -246,18 +304,74 @@ static void build_install_id(char *out, size_t cap)
 		snprintf(out + 2 * i, cap - 2 * i, "%02x", bytes[i]);
 }
 
+static struct install_job build_job(const struct request *q, const struct partition *target,
+				    const struct plan_request *req)
+{
+	struct server *s = q->s;
+	int is_uefi = is_dir(s->env->efivars);
+	return (struct install_job){ .env = s->env, .ops = s->ops, .src = &s->src, .target = target,
+				     .esp = is_uefi ? find_esp(s->parts, s->count, target) : NULL, .parts = s->parts,
+				     .count = s->count, .is_uefi = is_uefi, .req = *req };
+}
+
 static const char *handle_install(const struct request *q)
 {
 	struct checked c;
 	const char *error = check_request(q, &c);
 	if (error)
 		return error;
-	struct install_job job = { q->s->env, q->s->ops, &q->s->src, c.target, find_esp(q->s->parts, q->s->count, c.target),
-				   c.req, "" };
-	build_install_id(job.id, sizeof job.id);
+	struct install_job job = build_job(q, c.target, &c.req);
+	build_install_id(&c.state, job.id, sizeof job.id);
 	run_install(&job, on_progress, (void *)q, &error);
 	q->s->count = 0; /* free space changed */
 	return error;
+}
+
+/* ---- UNINSTALL ------------------------------------------------------------------------ */
+
+static const char *handle_uninstall(const struct request *q)
+{
+	const struct partition *p;
+	const char *folder;
+	const char *error = find_target(q, &p, &folder);
+	if (error)
+		return error;
+	if (is_running_install(q->s, p->name, folder))
+		return "running_system";
+	struct plan_request req = { .data_form = "keep", .system_form = "image" };
+	snprintf(req.folder, sizeof req.folder, "%s", folder);
+	snprintf(req.part, sizeof req.part, "%s", p->name);
+	struct install_job job = build_job(q, p, &req);
+	run_uninstall(&job, on_progress, (void *)q, &error);
+	q->s->count = 0;
+	return error;
+}
+
+/* ---- FIND_UPDATE: a live USB drive plugged into an installed system ------------------ */
+
+static const char *handle_find_update(const struct request *q)
+{
+	struct server *s = q->s;
+	struct build_info build;
+	if (ensure_running(s))
+		return "not_installed";
+	s->count = find_partitions(s->env, s->ops, s->parts, MAX_PARTITIONS);
+	if (find_usb_source(s->env, s->ops, s->parts, s->count, s->running.part, &s->src))
+		return "no_update_source";
+	s->src_state = 1;
+	apply_source_mark(s->parts, s->count, s->src.disk);
+	if (read_source_build(s->env, s->ops, &s->src, &build))
+		return "source_missing";
+	struct line l;
+	line_begin(&l, "UPDATE");
+	line_add(&l, "source", s->src.name);
+	line_add(&l, "version", build.version);
+	line_add_u64(&l, "build_utc", build.utc);
+	line_add(&l, "current_version", s->running.build.version);
+	line_add_u64(&l, "current_utc", s->running.build.utc);
+	line_add_u64(&l, "newer", build.utc > s->running.build.utc);
+	send_line(q, &l);
+	return NULL;
 }
 
 /* ---- dispatch ------------------------------------------------------------------------- */
@@ -266,11 +380,9 @@ static const struct {
 	const char *word;
 	const char *(*handle)(const struct request *);
 } HANDLERS[] = {
-	{ "INFO", handle_info },
-	{ "LIST", handle_list },
-	{ "INSPECT", handle_inspect },
-	{ "CHECK", handle_check },
-	{ "INSTALL", handle_install },
+	{ "INFO", handle_info },	 { "LIST", handle_list },	    { "INSPECT", handle_inspect },
+	{ "CHECK", handle_check },	 { "INSTALL", handle_install },	    { "UNINSTALL", handle_uninstall },
+	{ "FIND_UPDATE", handle_find_update },
 };
 
 static const char *dispatch(const struct request *q)
@@ -290,5 +402,5 @@ void handle_line(struct server *s, const char *line, reply_fn reply, void *ctx)
 		send_error(&q, error);
 		return;
 	}
-	send_ok(&q);
+	send_word(&q, "OK");
 }

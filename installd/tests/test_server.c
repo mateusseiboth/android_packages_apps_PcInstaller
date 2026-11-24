@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+
 #include "check.h"
 #include "fakesys.h"
 #include "proto.h"
@@ -33,6 +35,10 @@ static void setup_machine(void)
 	fake_write("cmdline", "pc.src=lineage pc.live=1\n");
 	fake_sh("mkdir -p mnt-sdb1/%1$s && printf K > mnt-sdb1/%1$s/kernel && printf I > mnt-sdb1/%1$s/initrd.img"
 		" && printf G > mnt-sdb1/%1$s/grubx64.efi && truncate -s 1M mnt-sdb1/%1$s/system.img", "lineage");
+	fake_sh("mkdir -p mnt-sdb1/%1$s/grub-pc/i386-pc && printf B > mnt-sdb1/%1$s/grub-pc/boot.img"
+		" && printf C > mnt-sdb1/%1$s/grub-pc/core.img && touch mnt-sdb1/%1$s/install-live.id", "lineage");
+	fake_backing_major = 8;
+	fake_backing_minor = 17;
 	server_init(&server, &fake_env, &FAKE_OPS);
 	reply_count = 0;
 }
@@ -66,7 +72,7 @@ static void info_tells_the_firmware_and_the_source(void)
 	setup_machine();
 	CHECK_STR(send("INFO\n"), "OK\n");
 	CHECK(reply_count == 2);
-	CHECK_STR(field(0, "version"), "1");
+	CHECK_STR(field(0, "version"), "2");
 	CHECK_STR(field(0, "uefi"), "1");
 	CHECK_STR(field(0, "live"), "1");
 	CHECK_STR(field(0, "folder"), "lineage");
@@ -166,8 +172,96 @@ static void without_a_live_source_nothing_installs(void)
 	fake_teardown();
 }
 
+static void a_bios_computer_installs_when_the_disk_has_room(void)
+{
+	setup_machine();
+	fake_sh("rmdir %s", "efivars");
+	CHECK_STR(send("CHECK part=sda3 folder=lineage system=image data=folder\n"), "OK\n");
+	CHECK_STR(field(0, "boot"), "bios");
+	send("INFO\n");
+	CHECK_STR(field(0, "uefi"), "0");
+	fake_teardown();
+}
+
+static void uninstall_removes_an_install(void)
+{
+	setup_machine();
+	CHECK_STR(send("INSTALL part=sda3 folder=lineage system=image data=folder\n"), "OK\n");
+	CHECK_STR(send("UNINSTALL part=sda3 folder=lineage\n"), "OK\n");
+	CHECK(find_reply("PROGRESS", "percent", "100") >= 0);
+	struct stat st;
+	CHECK(stat(fake_path("mnt-sda3/lineage"), &st));
+	CHECK_STR(send("UNINSTALL part=sda3 folder=lineage\n"), "ERR code=not_installed\n");
+	CHECK_STR(send("UNINSTALL part=sda3 folder=../x\n"), "ERR code=bad_folder\n");
+	fake_teardown();
+}
+
+/* The same machine after a reboot into the installed system, with the USB drive still plugged in. */
+static void setup_installed(void)
+{
+	setup_machine();
+	fake_sh("mkdir -p mnt-sda3/lineage/userdata && touch mnt-sda3/lineage/install-aaaa.id %s",
+		"mnt-sda3/lineage/system.img");
+	fake_sh("ln -s ../../devices/pci/block/sda/sda3 sys/dev/block/%s", "8:3");
+	fake_backing_minor = 3;
+	fake_write("cmdline", "pc.src=lineage pc.id=aaaa quiet\n");
+	fake_write("build.prop", "ro.build.date.utc=100\nro.lineage.display.version=24.0-old\n");
+	fake_partition("sdb", "loop9", 0, 0);
+	fake_sh("mkdir -p mnt-loop9/system && printf 'ro.build.date.utc=200\nro.lineage.display.version=24.0-new\n' > %s",
+		"mnt-loop9/system/build.prop");
+	server_init(&server, &fake_env, &FAKE_OPS);
+}
+
+static void an_installed_system_says_which_install_it_is(void)
+{
+	setup_installed();
+	CHECK_STR(send("INFO\n"), "OK\n");
+	CHECK_STR(field(0, "live"), "0");
+	CHECK_STR(field(0, "installed"), "1");
+	CHECK_STR(field(0, "install_part"), "sda3");
+	CHECK_STR(field(0, "install_folder"), "lineage");
+	CHECK_STR(field(0, "install_system"), "image");
+	CHECK_STR(field(0, "install_version"), "24.0-old");
+	fake_teardown();
+}
+
+static void an_installed_system_updates_from_a_usb_drive(void)
+{
+	setup_installed();
+	CHECK_STR(send("FIND_UPDATE\n"), "OK\n");
+	CHECK_STR(field(0, "source"), "sdb1");
+	CHECK_STR(field(0, "version"), "24.0-new");
+	CHECK_STR(field(0, "newer"), "1");
+	CHECK_STR(send("INSTALL part=sda3 folder=lineage system=image data=keep\n"), "OK\n");
+	struct stat st;
+	CHECK(!stat(fake_path("mnt-sda3/lineage/system.old.img"), &st));
+	CHECK(!stat(fake_path("mnt-sda3/lineage/install-aaaa.id"), &st)); /* the same menu entry */
+	fake_teardown();
+}
+
+static void the_running_install_cannot_be_removed(void)
+{
+	setup_installed();
+	CHECK_STR(send("UNINSTALL part=sda3 folder=lineage\n"), "ERR code=running_system\n");
+	fake_teardown();
+}
+
+static void without_a_usb_drive_there_is_no_update(void)
+{
+	setup_installed();
+	fake_sh("rm %s", "mnt-sdb1/lineage/install-live.id");
+	CHECK_STR(send("FIND_UPDATE\n"), "ERR code=no_update_source\n");
+	fake_teardown();
+}
+
 int main(void)
 {
+	RUN(a_bios_computer_installs_when_the_disk_has_room);
+	RUN(uninstall_removes_an_install);
+	RUN(an_installed_system_says_which_install_it_is);
+	RUN(an_installed_system_updates_from_a_usb_drive);
+	RUN(the_running_install_cannot_be_removed);
+	RUN(without_a_usb_drive_there_is_no_update);
 	RUN(info_tells_the_firmware_and_the_source);
 	RUN(list_describes_each_partition);
 	RUN(a_partition_that_cannot_be_opened_says_so);

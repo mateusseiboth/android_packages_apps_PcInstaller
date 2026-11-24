@@ -17,9 +17,35 @@ struct live_source {
 	struct source_sizes sizes;
 };
 
+/* Which build a system is (build.prop). */
+struct build_info {
+	unsigned long long utc; /* ro.build.date.utc */
+	char version[96];       /* ro.lineage.display.version, else ro.build.display.id */
+};
+
+/* The install an installed system was started from (pc.src, pc.id, and the partition behind /). */
+struct running_install {
+	char part[32];
+	char folder[128];
+	char id[64];
+	struct build_info build;
+};
+
+/* A live USB drive holds <folder>/install-live.id next to the system. */
+#define LIVE_FOLDER "lineage"
+
+void parse_build_prop(const char *text, struct build_info *out);
 int parse_root_device(const char *mountinfo, unsigned *major, unsigned *minor);
 /* 1 when pc.live=1; folder gets pc.src= (default lineage). */
 int parse_live_cmdline(const char *cmdline, char *folder, size_t cap);
 int find_live_source(const struct sys_env *env, const struct sys_ops *ops, struct live_source *out);
 /* Mounts the source and measures kernel, initrd.img, system.img and grubx64.efi; -1 if one is missing. */
 int mount_live_source(const struct sys_env *env, const struct sys_ops *ops, struct live_source *s);
+/* 0 on an installed (not live) system. */
+int find_running_install(const struct sys_env *env, const struct sys_ops *ops, struct running_install *out);
+/* A live USB drive among parts (skipping the install's own partition), left mounted as the source. */
+int find_usb_source(const struct sys_env *env, const struct sys_ops *ops, const struct partition *parts, int count,
+		    const char *skip, struct live_source *out);
+/* The build inside the source's system.img. */
+int read_source_build(const struct sys_env *env, const struct sys_ops *ops, const struct live_source *s,
+		      struct build_info *out);

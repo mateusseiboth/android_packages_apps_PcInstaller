@@ -239,3 +239,56 @@ int apply_boot_entry(const char *dir, const uint8_t *option, size_t len, uint16_
 		return -1;
 	return save_boot_order(dir, *number);
 }
+
+/* ---- removing ------------------------------------------------------------------------- */
+
+/* The description is UTF-16 after the attributes (4) and the path list length (2). */
+static int has_description(const uint8_t *option, size_t len, const char *description)
+{
+	size_t i = 0;
+	for (; description[i]; i++)
+		if (6 + 2 * i + 1 >= len || option[6 + 2 * i] != (uint8_t)description[i] || option[7 + 2 * i])
+			return 0;
+	return 6 + 2 * i + 1 < len && !option[6 + 2 * i] && !option[7 + 2 * i];
+}
+
+static int remove_boot_var(const char *dir, uint16_t number, const char *description)
+{
+	char name[16], path[512];
+	uint8_t buf[4096];
+	size_t n = 0;
+	snprintf(name, sizeof name, "Boot%04X", number);
+	if (read_efi_var(dir, name, buf, sizeof buf, &n) || !has_description(buf, n, description))
+		return 0;
+	build_var_path(path, sizeof path, dir, name);
+	clear_immutable(path);
+	return unlink(path) ? 0 : 1;
+}
+
+static int is_removed(const uint16_t *removed, int count, uint16_t number) { return is_used(removed, count, number); }
+
+static int save_order_without(const char *dir, const uint16_t *removed, int count)
+{
+	uint16_t order[MAX_BOOT_ENTRIES];
+	size_t len = 0;
+	if (read_efi_var(dir, "BootOrder", order, sizeof order, &len))
+		return 0;
+	int kept = 0;
+	for (size_t i = 0; i < len / 2; i++)
+		if (!is_removed(removed, count, order[i]))
+			order[kept++] = order[i];
+	return save_efi_var(dir, "BootOrder", order, (size_t)kept * 2);
+}
+
+int remove_boot_entries(const char *dir, const char *description)
+{
+	uint16_t used[MAX_BOOT_ENTRIES], removed[MAX_BOOT_ENTRIES];
+	int count = 0, gone = 0;
+	find_boot_entries(dir, (const uint8_t *)"", 0, used, &count);
+	for (int i = 0; i < count; i++)
+		if (remove_boot_var(dir, used[i], description))
+			removed[gone++] = used[i];
+	if (gone && save_order_without(dir, removed, gone))
+		return -1;
+	return gone;
+}

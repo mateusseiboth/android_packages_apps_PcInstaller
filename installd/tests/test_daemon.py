@@ -54,7 +54,7 @@ class SocketTest(unittest.TestCase):
 
     def test_answers_each_request_on_one_connection(self):
         replies = self.talk("INFO", "LIST", "FORMAT")
-        self.assertTrue(replies[0].startswith("INFO version=1 uefi=0 live=0"))
+        self.assertTrue(replies[0].startswith("INFO version=2 uefi=0 live=0"))
         self.assertEqual(replies[1:], ["OK", "OK", "ERR code=bad_request"])
 
     def test_a_new_connection_after_the_first_one_closes(self):
@@ -71,10 +71,11 @@ class CmdlineTest(unittest.TestCase):
         self.assertEqual(run("--cmdline", "lineage", "quiet").strip(), kernel_cmdline("lineage", "quiet"))
         self.assertEqual(run("--cmdline", "os/lin", "").strip(), kernel_cmdline("os/lin", ""))
 
-    def test_prints_the_grub_menu(self):
-        cfg = run("--grub-cfg", "lineage", "00ff", "previous")
-        self.assertIn("pc.previous=1", cfg)
-        self.assertIn("--file /lineage/install-00ff.id", cfg)
+    def test_prints_the_grub_entry(self):
+        entry = run("--grub-entry", "lineage", "00ff", "Dados", "previous")
+        self.assertIn('menuentry "LineageOS (Dados)" --id lineage-00ff', entry)
+        self.assertIn("pc.previous=1", entry)
+        self.assertIn("--file /lineage/install-00ff.id", entry)
 
 
 if __name__ == "__main__":

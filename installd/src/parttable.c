@@ -5,6 +5,9 @@
 /* C12A7328-F81F-11D2-BA4B-00A0C93EC93B as stored on disk. */
 static const uint8_t ESP_TYPE[16] = { 0x28, 0x73, 0x2a, 0xc1, 0x1f, 0xf8, 0xd2, 0x11,
 				      0xba, 0x4b, 0x00, 0xa0, 0xc9, 0x3e, 0xc9, 0x3b };
+/* 21686148-6449-6E6F-744E-656564454649 as stored on disk. */
+static const uint8_t BIOS_BOOT_TYPE[16] = { 0x48, 0x61, 0x68, 0x21, 0x49, 0x64, 0x6f, 0x6e,
+					    0x74, 0x4e, 0x65, 0x65, 0x64, 0x45, 0x46, 0x49 };
 #define MBR_ESP 0xef
 #define MBR_GPT_PROTECTIVE 0xee
 
@@ -32,6 +35,7 @@ static int parse_gpt(const uint8_t *head, size_t len, unsigned lbs, struct part_
 	uint64_t first = read_le(hdr + 72, 8) * lbs;
 	uint32_t count = (uint32_t)read_le(hdr + 80, 4), size = (uint32_t)read_le(hdr + 84, 4);
 	out->is_gpt = 1;
+	out->first_usable = read_le(hdr + 40, 8);
 	for (uint32_t i = 0; i < count && out->count < PARTTABLE_MAX && first + (i + 1) * (uint64_t)size <= len; i++) {
 		const uint8_t *e = head + first + i * (uint64_t)size;
 		if (is_zero(e, 16))
@@ -39,7 +43,8 @@ static int parse_gpt(const uint8_t *head, size_t len, unsigned lbs, struct part_
 		struct part_entry *p = &out->entries[out->count++];
 		*p = (struct part_entry){ .number = (int)i + 1, .start = read_le(e + 32, 8),
 					  .size = read_le(e + 40, 8) - read_le(e + 32, 8) + 1,
-					  .is_esp = !memcmp(e, ESP_TYPE, 16) };
+					  .is_esp = !memcmp(e, ESP_TYPE, 16),
+					  .is_bios_boot = !memcmp(e, BIOS_BOOT_TYPE, 16) };
 		memcpy(p->unique, e + 16, 16);
 	}
 	return 0;

@@ -14,10 +14,12 @@ struct part_entry {
 	uint64_t start, size; /* logical blocks */
 	uint8_t unique[16];   /* GPT unique partition GUID, as stored */
 	int is_esp;
+	int is_bios_boot; /* GPT "BIOS boot" partition, for GRUB's core image */
 };
 
 struct part_table {
 	int is_gpt;
+	uint64_t first_usable; /* GPT: first sector after the partition entries */
 	uint8_t mbr_id[4];
 	int count;
 	struct part_entry entries[PARTTABLE_MAX];
