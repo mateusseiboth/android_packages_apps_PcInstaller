@@ -28,6 +28,19 @@ class StringsTest(unittest.TestCase):
             for name, text in read_strings(folder).items():
                 self.assertNotIn("—", text, f"{folder}/{name}")
 
+    def test_never_asks_to_turn_secure_boot_off(self):
+        # shim and the enrolled key start LineageOS with Secure Boot on.
+        english, portuguese = (read_strings(f) for f in LANGUAGES)
+        self.assertFalse([n for n, t in english.items() if "turn it off" in t.lower()])
+        self.assertFalse([n for n, t in portuguese.items() if "desative-a" in t.lower()])
+
+    def test_the_key_steps_name_mokmanager_options_as_shown_on_screen(self):
+        # MokManager is English only; the steps quote its options as they appear.
+        for folder in LANGUAGES:
+            text = read_strings(folder)["key_queued"]
+            for option in ("Enroll MOK", "Continue", "Yes", "Reboot", "%1$s"):
+                self.assertIn(option, text, folder)
+
 
 if __name__ == "__main__":
     unittest.main()

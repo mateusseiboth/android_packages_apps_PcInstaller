@@ -113,5 +113,7 @@
     <string name="error_not_installed">Não há um LineageOS nesta pasta.</string>
     <string name="error_running_system">Este é o LineageOS em uso. Para removê-lo, inicie pelo pendrive.</string>
     <string name="error_no_update_source">Nenhum pendrive do LineageOS foi encontrado. Conecte-o e tente de novo.</string>
-    <string name="secure_boot">A Inicialização Segura (Secure Boot) está ativada. Desative-a nas configurações do computador para o LineageOS iniciar.</string>
+    <string name="key_needed">Para iniciar com a Inicialização Segura ativada, este computador precisa da chave do LineageOS. Prepare-a agora e confirme no próximo início.</string>
+    <string name="key_prepare">Preparar a chave</string>
+    <string name="key_queued">No próximo início, aperte uma tecla, escolha Enroll MOK, Continue e Yes, digite a senha %1$s e escolha Reboot.</string>
 </resources>

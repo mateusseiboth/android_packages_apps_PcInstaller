@@ -76,6 +76,11 @@ class InstallerViewModel : ViewModel() {
         client.findUpdate().fold(FlowEvent::UpdateFound, FlowEvent::UpdateMissing)
     }
 
+    /** Queues the live source's key for MokManager on the next start. */
+    fun prepareKey() = runDaemon(FlowEvent::KeyFailed) { client ->
+        client.enrollKey().fold(FlowEvent::KeyQueued, FlowEvent::KeyFailed)
+    }
+
     fun askUninstall() = on(FlowEvent.UninstallAsked)
 
     fun cancelUninstall() = on(FlowEvent.UninstallCancelled)

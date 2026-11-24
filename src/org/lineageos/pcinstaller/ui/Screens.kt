@@ -50,6 +50,7 @@ import org.lineageos.pcinstaller.core.DataForm
 import org.lineageos.pcinstaller.core.FlowState
 import org.lineageos.pcinstaller.core.InstallError
 import org.lineageos.pcinstaller.core.InstallRules
+import org.lineageos.pcinstaller.core.KeyStep
 import org.lineageos.pcinstaller.core.Partition
 import org.lineageos.pcinstaller.core.SystemForm
 import org.lineageos.pcinstaller.core.Task
@@ -69,6 +70,7 @@ class Actions(
     val askUninstall: () -> Unit,
     val cancelUninstall: () -> Unit,
     val uninstall: () -> Unit,
+    val prepareKey: () -> Unit,
 )
 
 @Composable
@@ -85,6 +87,17 @@ private fun MainButton(text: String, busy: Boolean, enabled: Boolean = true, onC
 @Composable
 private fun ErrorNote(error: InstallError?) {
     error?.let { Note(stringResource(Texts.error(it)), isError = true) }
+}
+
+/** shim needs the live source's key to start our GRUB with Secure Boot on: offer it, or say what comes next. */
+@Composable
+private fun KeyNote(state: FlowState, busy: Boolean, actions: Actions) {
+    val step = state.keyStep()
+    if (step == KeyStep.QUEUED) Note(stringResource(R.string.key_queued, state.keyPassword!!))
+    if (step != KeyStep.NEEDED) return
+    Note(stringResource(R.string.key_needed))
+    ErrorNote(state.keyError)
+    OutlinedButton(onClick = actions.prepareKey, enabled = !busy) { Text(stringResource(R.string.key_prepare)) }
 }
 
 // ---- welcome and loading -------------------------------------------------------------------
@@ -325,7 +338,7 @@ fun SummaryScreen(state: FlowState, busy: Boolean, actions: Actions) {
         Note(stringResource(R.string.summary_keep_files))
         Note(stringResource(R.string.summary_boot))
         if (!check.isUefi) Note(stringResource(R.string.summary_bios))
-        if (check.isUefi && state.source!!.secureBoot) Note(stringResource(R.string.secure_boot), isError = true)
+        KeyNote(state, busy, actions)
     }
 }
 
@@ -363,7 +376,7 @@ private val FINISHED_TEXTS = mapOf(
 )
 
 @Composable
-fun DoneScreen(state: FlowState, actions: Actions) {
+fun DoneScreen(state: FlowState, busy: Boolean, actions: Actions) {
     val (title, body) = FINISHED_TEXTS.getValue(state.task)
     Page(
         icon = Icons.Rounded.CheckCircle,
@@ -371,7 +384,7 @@ fun DoneScreen(state: FlowState, actions: Actions) {
         body = stringResource(body),
         actions = { Button(onClick = actions.reboot) { Text(stringResource(R.string.done_reboot)) } },
     ) {
-        if (state.task != Task.REMOVE && state.source?.secureBoot == true) Note(stringResource(R.string.secure_boot), isError = true)
+        if (state.task != Task.REMOVE) KeyNote(state, busy, actions)
     }
 }
 

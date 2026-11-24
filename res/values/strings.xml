@@ -114,5 +114,7 @@
     <string name="error_not_installed">There is no LineageOS in this folder.</string>
     <string name="error_running_system">This is the LineageOS in use. To remove it, start from the USB drive.</string>
     <string name="error_no_update_source">No LineageOS USB drive was found. Plug it in and try again.</string>
-    <string name="secure_boot">Secure Boot is on. Turn it off in the computer\'s firmware settings so LineageOS can start.</string>
+    <string name="key_needed">To start with Secure Boot on, this computer needs the LineageOS key. Prepare it now and confirm it on the next start.</string>
+    <string name="key_prepare">Prepare the key</string>
+    <string name="key_queued">On the next start, press a key, choose Enroll MOK, Continue and Yes, type the password %1$s and choose Reboot.</string>
 </resources>

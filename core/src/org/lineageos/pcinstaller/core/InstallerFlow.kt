@@ -4,6 +4,9 @@ enum class Screen {
     WELCOME, LOADING, PARTITIONS, FORMS, SUMMARY, INSTALLING, DONE, REMOVED, FAILED, UPDATE_HOME, UPDATE_FOUND
 }
 
+/** The key shim needs to start our GRUB with Secure Boot on: nothing to do, offer it, or queued for MokManager. */
+enum class KeyStep { NONE, NEEDED, QUEUED }
+
 /** What the progress screen is doing. */
 enum class Task { INSTALL, UPDATE, REMOVE }
 
@@ -24,7 +27,20 @@ data class FlowState(
     val step: InstallStep = InstallStep.PREPARE,
     val percent: Int = 0,
     val error: InstallError? = null,
+    /** Set once the key is queued: MokManager asks for it on the next start. */
+    val keyPassword: String? = null,
+    val keyError: InstallError? = null,
 ) {
+    fun keyStep(): KeyStep = when {
+        source?.uefi != true -> KeyStep.NONE
+        keyPassword != null -> KeyStep.QUEUED
+        isKeyEnrolled() -> KeyStep.NONE
+        else -> KeyStep.NEEDED
+    }
+
+    /** An update installs the USB drive's GRUB, signed with that drive's key. */
+    private fun isKeyEnrolled(): Boolean = update?.mokEnrolled ?: source!!.mokEnrolled
+
     /** An update from a USB drive rewrites the running install as it is; otherwise the user's choices. */
     fun plan(): InstallPlan = update?.let { updatePlan() } ?: InstallPlan(selected!!.name, folder, system, data, dataSize)
 
@@ -57,6 +73,8 @@ sealed interface FlowEvent {
     data object Installed : FlowEvent
     data class InstallFailed(val error: InstallError) : FlowEvent
     data object Back : FlowEvent
+    data class KeyQueued(val password: String) : FlowEvent
+    data class KeyFailed(val error: InstallError) : FlowEvent
 }
 
 /** The installer's screens as a pure state machine; the view model runs the daemon calls and feeds events. */
@@ -92,6 +110,8 @@ object InstallerFlow {
         FlowEvent.Installed -> s.copy(screen = FINISHED.getValue(s.task), percent = 100)
         is FlowEvent.InstallFailed -> s.copy(screen = Screen.FAILED, error = e.error)
         FlowEvent.Back -> s.copy(screen = BACK[s.screen] ?: s.screen, error = null)
+        is FlowEvent.KeyQueued -> s.copy(keyPassword = e.password, keyError = null)
+        is FlowEvent.KeyFailed -> s.copy(keyError = e.error)
     }
 
     private fun findTask(s: FlowState): Task = when {

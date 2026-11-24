@@ -10,8 +10,12 @@ data class SourceInfo(
     val system: Long,
     /** On an installed system (not live): which install is running. */
     val installed: RunningInstall? = null,
-    /** The firmware only starts signed loaders; our GRUB needs it turned off. */
+    /** The firmware only starts signed loaders (shim, then our GRUB signed with the builder's key). */
     val secureBoot: Boolean = false,
+    /** shim already trusts the live source's key (MokListRT or db). */
+    val mokEnrolled: Boolean = false,
+    /** MokManager will ask to enroll the key on the next start. */
+    val mokQueued: Boolean = false,
 ) {
     val copyBytes: Long get() = kernel + initrd + system
 }
@@ -19,7 +23,15 @@ data class SourceInfo(
 data class RunningInstall(val partition: String, val folder: String, val system: SystemForm, val version: String)
 
 /** A live USB drive plugged into an installed system. */
-data class UpdateInfo(val source: String, val version: String, val currentVersion: String, val isNewer: Boolean)
+data class UpdateInfo(
+    val source: String,
+    val version: String,
+    val currentVersion: String,
+    val isNewer: Boolean,
+    /** The same as SourceInfo's, for the key on this USB drive. */
+    val mokEnrolled: Boolean = false,
+    val mokQueued: Boolean = false,
+)
 
 data class Partition(
     val name: String,

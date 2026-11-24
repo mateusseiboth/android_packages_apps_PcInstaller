@@ -53,6 +53,34 @@ class InstallerClientTest {
     }
 
     @Test
+    fun readsWhetherShimTrustsTheKey() {
+        val t = ScriptedTransport(mapOf("INFO" to listOf(
+            "INFO version=3 uefi=1 secure_boot=1 mok_enrolled=0 mok_queued=1 live=1 folder=lineage", "OK")))
+        val info = (InstallerClient(t).info() as DaemonResult.Ok).value
+        assertEquals(false, info.mokEnrolled)
+        assertEquals(true, info.mokQueued)
+    }
+
+    @Test
+    fun queuesTheKeyAndReadsThePassword() {
+        val t = ScriptedTransport(mapOf("ENROLL_KEY" to listOf("MOK password=00000042", "OK")))
+        assertEquals(DaemonResult.Ok("00000042"), InstallerClient(t).enrollKey())
+        assertEquals("ENROLL_KEY\n", t.sent.single())
+        val failed = ScriptedTransport(mapOf("ENROLL_KEY" to listOf("ERR code=efi_failed")))
+        assertEquals(DaemonResult.Failed(InstallError.EFI_FAILED), InstallerClient(failed).enrollKey())
+    }
+
+    @Test
+    fun anUpdateSaysWhetherShimTrustsItsKey() {
+        val t = ScriptedTransport(mapOf("FIND_UPDATE" to listOf(
+            "UPDATE source=sdb1 version=24.0-new build_utc=200 current_version=24.0-old current_utc=100 newer=1 " +
+                "mok_enrolled=1 mok_queued=0", "OK")))
+        val update = (InstallerClient(t).findUpdate() as DaemonResult.Ok).value
+        assertEquals(true, update.mokEnrolled)
+        assertEquals(false, update.mokQueued)
+    }
+
+    @Test
     fun findsAnUpdateOnAUsbDrive() {
         val t = ScriptedTransport(mapOf("FIND_UPDATE" to listOf(
             "UPDATE source=sdb1 version=24.0-new build_utc=200 current_version=24.0-old current_utc=100 newer=1", "OK")))

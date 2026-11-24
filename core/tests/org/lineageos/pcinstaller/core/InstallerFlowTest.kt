@@ -140,6 +140,38 @@ class InstallerFlowTest {
     }
 
     @Test
+    fun aUefiComputerWithoutTheKeyIsOfferedIt() {
+        assertEquals(KeyStep.NEEDED, loaded().keyStep())
+        val bios = InstallerFlow.reduce(FlowState(), FlowEvent.Loaded(source.copy(uefi = false), listOf(ext4)))
+        assertEquals(KeyStep.NONE, bios.keyStep())
+        val enrolled = InstallerFlow.reduce(FlowState(), FlowEvent.Loaded(source.copy(mokEnrolled = true), listOf(ext4)))
+        assertEquals(KeyStep.NONE, enrolled.keyStep())
+    }
+
+    @Test
+    fun aQueuedKeyShowsThePasswordAndAFailureSaysWhy() {
+        val queued = InstallerFlow.reduce(loaded(), FlowEvent.KeyQueued("00000042"))
+        assertEquals(KeyStep.QUEUED, queued.keyStep())
+        assertEquals("00000042", queued.keyPassword)
+        val failed = InstallerFlow.reduce(loaded(), FlowEvent.KeyFailed(InstallError.EFI_FAILED))
+        assertEquals(KeyStep.NEEDED, failed.keyStep())
+        assertEquals(InstallError.EFI_FAILED, failed.keyError)
+        assertNull(InstallerFlow.reduce(failed, FlowEvent.KeyQueued("1")).keyError)
+    }
+
+    @Test
+    fun anUpdateUsesTheKeyOfItsUsbDrive() {
+        val running = RunningInstall("sda3", "lineage", SystemForm.FOLDER, "24.0-old")
+        val installed = InstallerFlow.reduce(FlowState(),
+            FlowEvent.Loaded(source.copy(live = false, installed = running), emptyList()))
+        val update = UpdateInfo("sdb1", "24.0-new", "24.0-old", true)
+        val withKey = InstallerFlow.reduce(installed, FlowEvent.UpdateFound(update.copy(mokEnrolled = true)))
+        assertEquals(KeyStep.NONE, withKey.keyStep())
+        val withoutKey = InstallerFlow.reduce(installed, FlowEvent.UpdateFound(update))
+        assertEquals(KeyStep.NEEDED, withoutKey.keyStep())
+    }
+
+    @Test
     fun backGoesOneScreenUpButNeverLeavesAnInstall() {
         val forms = InstallerFlow.reduce(loaded(), FlowEvent.PartitionChosen(ext4, fresh))
         assertEquals(Screen.PARTITIONS, InstallerFlow.reduce(forms, FlowEvent.Back).screen)

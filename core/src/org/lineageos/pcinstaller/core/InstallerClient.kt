@@ -31,6 +31,9 @@ class InstallerClient(private val transport: Transport) {
 
     fun findUpdate(): DaemonResult<UpdateInfo> = request("FIND_UPDATE") { lines -> lines.single("UPDATE").toUpdateInfo() }
 
+    /** Queues the source's key for MokManager; the password the user types at the next start. */
+    fun enrollKey(): DaemonResult<String> = request("ENROLL_KEY") { lines -> lines.single("MOK")["password"].orEmpty() }
+
     private fun <T> request(
         word: String,
         vararg fields: Pair<String, Any>,
@@ -72,7 +75,7 @@ private fun Message.toSourceInfo() = SourceInfo(
     uefi = flag("uefi"), live = flag("live"), folder = this["folder"].orEmpty(),
     kernel = long("kernel"), initrd = long("initrd"), system = long("system"),
     installed = toRunningInstall().takeIf { flag("installed") },
-    secureBoot = flag("secure_boot"),
+    secureBoot = flag("secure_boot"), mokEnrolled = flag("mok_enrolled"), mokQueued = flag("mok_queued"),
 )
 
 private fun Message.toRunningInstall() = RunningInstall(
@@ -82,6 +85,7 @@ private fun Message.toRunningInstall() = RunningInstall(
 
 private fun Message.toUpdateInfo() = UpdateInfo(
     this["source"].orEmpty(), this["version"].orEmpty(), this["current_version"].orEmpty(), flag("newer"),
+    mokEnrolled = flag("mok_enrolled"), mokQueued = flag("mok_queued"),
 )
 
 private fun Message.toPartition() = Partition(
