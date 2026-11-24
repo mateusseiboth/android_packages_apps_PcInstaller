@@ -22,7 +22,7 @@ struct plan_request {
 };
 
 struct plan_result {
-	const char *error; /* error code, see README.md "Errors" */
+	const char *error; /* error code, see the repository README, "Errors" */
 	const char *mode;  /* install | update */
 	unsigned long long need;
 };

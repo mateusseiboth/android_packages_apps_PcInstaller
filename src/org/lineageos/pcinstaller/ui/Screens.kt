@@ -13,7 +13,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Downloading
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.FolderOpen
-import androidx.compose.material.icons.rounded.InsertDriveFile
+import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
 import androidx.compose.material.icons.rounded.InstallDesktop
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Restore
@@ -172,11 +172,11 @@ private fun FsChip(text: String) {
 
 // ---- forms ---------------------------------------------------------------------------------
 
-private val SYSTEM_ICONS = mapOf(SystemForm.IMAGE to Icons.Rounded.InsertDriveFile, SystemForm.FOLDER to Icons.Rounded.FolderOpen)
+private val SYSTEM_ICONS = mapOf(SystemForm.IMAGE to Icons.AutoMirrored.Rounded.InsertDriveFile, SystemForm.FOLDER to Icons.Rounded.FolderOpen)
 private val SYSTEM_BODIES = mapOf(SystemForm.IMAGE to R.string.system_image_body, SystemForm.FOLDER to R.string.system_folder_body)
 private val DATA_ICONS = mapOf(
     DataForm.FOLDER to Icons.Rounded.FolderOpen,
-    DataForm.IMAGE to Icons.Rounded.InsertDriveFile,
+    DataForm.IMAGE to Icons.AutoMirrored.Rounded.InsertDriveFile,
     DataForm.KEEP to Icons.Rounded.Restore,
 )
 private val DATA_BODIES = mapOf(

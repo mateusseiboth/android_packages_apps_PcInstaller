@@ -1,7 +1,7 @@
 /*
  * The app <-> pc-installd line protocol. A line is an upper-case WORD followed by key=value fields
  * separated by single spaces. Values are percent-encoded: any byte outside [A-Za-z0-9._/:+,-] is
- * written as %XX, so a value never holds a space, '=' or a newline. See README.md, "Protocol".
+ * written as %XX, so a value never holds a space, '=' or a newline. See the repository README, "Protocol".
  */
 #pragma once
 #include <stddef.h>

@@ -55,7 +55,7 @@ enum class InstallStep(val wire: String) {
     }
 }
 
-/** The daemon's error codes (installd README, "Errors"), plus the client's own. */
+/** The daemon's error codes (README, "Errors"), plus the client's own. */
 enum class InstallError(val code: String) {
     BAD_REQUEST("bad_request"),
     BAD_FOLDER("bad_folder"),
