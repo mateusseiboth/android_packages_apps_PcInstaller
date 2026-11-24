@@ -1,0 +1,4 @@
+# PcInstaller runs as android.uid.system: it starts pc-installd and talks to its socket.
+system_internal_prop(ctl_pc_installd_prop)
+set_prop(system_app, ctl_pc_installd_prop)
+unix_socket_connect(system_app, pc_installd, pc_installd)

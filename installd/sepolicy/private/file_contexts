@@ -1,0 +1,2 @@
+/(system_ext|system/system_ext)/bin/pc-installd    u:object_r:pc_installd_exec:s0
+/dev/socket/pc_installd                             u:object_r:pc_installd_socket:s0

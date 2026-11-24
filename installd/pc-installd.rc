@@ -1,0 +1,7 @@
+# pc-installd: started by PcInstaller (ctl.start) in the live session; runs until stopped.
+service pc_installd /system_ext/bin/pc-installd
+    user root
+    group root system
+    socket pc_installd stream 0660 root system
+    disabled
+    oneshot

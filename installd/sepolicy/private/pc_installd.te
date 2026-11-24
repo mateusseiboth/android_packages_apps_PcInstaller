@@ -1,0 +1,28 @@
+# pc-installd: lists disks, mounts partitions, copies the system, writes the ESP and EFI variables.
+# Sketch: the domain stays permissive (the whole device is permissive for now); the allow rules below
+# are the ones it is known to need, as the starting point of the enforcing policy.
+type pc_installd, domain, coredomain;
+type pc_installd_exec, system_file_type, exec_type, file_type;
+type pc_installd_socket, file_type, coredomain_socket, mlstrustedobject;
+init_daemon_domain(pc_installd)
+permissive pc_installd;
+
+allow pc_installd self:global_capability_class_set { sys_admin chown fowner fsetid dac_override dac_read_search mknod };
+
+# Disks, partitions and loop devices.
+allow pc_installd block_device:dir r_dir_perms;
+allow pc_installd block_device:blk_file rw_file_perms;
+allow pc_installd loop_control_device:chr_file rw_file_perms;
+allow pc_installd loop_device:blk_file rw_file_perms;
+r_dir_file(pc_installd, sysfs)
+allow pc_installd proc_cmdline:file r_file_perms;
+
+# Its mount points under /mnt/pc-installd, and the file systems it mounts there.
+allow pc_installd tmpfs:dir create_dir_perms;
+allow pc_installd { labeledfs vfat exfat unlabeled }:filesystem { mount unmount getattr };
+
+# data.img
+allow pc_installd mke2fs_exec:file rx_file_perms;
+
+# TODO enforcing: extracting the system sets every file's security.selinux, which needs relabelto
+# on all file types (against coredomain neverallows); EFI variables need an efivarfs label.

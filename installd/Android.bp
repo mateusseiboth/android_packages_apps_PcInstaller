@@ -1,0 +1,17 @@
+// pc-installd: the root service behind PcInstaller. Host tests: `make test` in this directory.
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+cc_binary {
+    name: "pc-installd",
+    system_ext_specific: true,
+    srcs: ["src/*.c"],
+    c_std: "gnu11",
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+    ],
+    init_rc: ["pc-installd.rc"],
+}

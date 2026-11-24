@@ -1,0 +1,2 @@
+ctl.start$pc_installd    u:object_r:ctl_pc_installd_prop:s0
+ctl.stop$pc_installd     u:object_r:ctl_pc_installd_prop:s0
