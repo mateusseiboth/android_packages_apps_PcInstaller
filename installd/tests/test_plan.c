@@ -133,21 +133,30 @@ static void every_file_system_has_a_rule(void)
 	CHECK_STR(find_fs_rule("never-heard-of-it")->reason, "fs_unsupported");
 }
 
-static void needs_a_uefi_boot_and_an_esp(void)
+static void uefi_needs_an_esp_and_bios_needs_room_for_grub(void)
 {
 	struct plan_request r = request("image", "image", 8 * GIB);
 	struct partition p = part("ext4", 100 * GIB);
 	struct plan_result out;
-	struct machine bios = { .is_uefi = 0, .has_esp = 1 }, no_esp = { .is_uefi = 1, .has_esp = 0 };
-	CHECK(validate_plan(&r, &p, &SOURCE, &FRESH, &bios, &out));
-	CHECK_STR(out.error, "not_uefi");
+	struct machine bios = { .is_uefi = 0, .has_boot_room = 1 }, full = { .is_uefi = 0, .has_boot_room = 0 };
+	struct machine no_esp = { .is_uefi = 1, .has_esp = 0 };
+	CHECK(!validate_plan(&r, &p, &SOURCE, &FRESH, &bios, &out));
+	CHECK(validate_plan(&r, &p, &SOURCE, &FRESH, &full, &out));
+	CHECK_STR(out.error, "no_boot_room");
 	CHECK(validate_plan(&r, &p, &SOURCE, &FRESH, &no_esp, &out));
 	CHECK_STR(out.error, "no_esp");
 }
 
+static void lvm_and_raid_members_are_refused(void)
+{
+	CHECK_STR(check(request("image", "image", 8 * GIB), part("lvm", 100 * GIB), FRESH), "lvm");
+	CHECK_STR(check(request("image", "image", 8 * GIB), part("raid", 100 * GIB), FRESH), "raid");
+}
+
 int main(void)
 {
-	RUN(needs_a_uefi_boot_and_an_esp);
+	RUN(uefi_needs_an_esp_and_bios_needs_room_for_grub);
+	RUN(lvm_and_raid_members_are_refused);
 	RUN(linux_file_systems_take_every_form);
 	RUN(windows_file_systems_take_only_images);
 	RUN(fat32_cannot_hold_files_of_4_gib);

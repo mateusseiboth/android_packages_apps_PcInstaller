@@ -88,6 +88,35 @@ static void a_short_read_is_unknown(void)
 	CHECK_STR(fs.type, "unknown");
 }
 
+static void reads_the_uuid_grub_searches_for(void)
+{
+	struct fs_info fs;
+	put(3, "NTFS    ", 8);
+	also_put(0x48, "\x08\x07\x06\x05\x04\x03\x02\x01", 8);
+	probe_fs(buf, sizeof buf, &fs);
+	CHECK_STR(fs.uuid, "0102030405060708");
+
+	put(3, "EXFAT   ", 8);
+	also_put(0x64, "\xd4\xc3\xb2\xa1", 4);
+	probe_fs(buf, sizeof buf, &fs);
+	CHECK_STR(fs.uuid, "a1b2-c3d4");
+
+	put(65536 + 64, "_BHRfS_M", 8);
+	also_put(65536 + 32, "\x0f\x5a\x7f\x3c\x11\x11\x22\x22\x33\x33\x44\x44\x55\x55\x66\x66", 16);
+	probe_fs(buf, sizeof buf, &fs);
+	CHECK_STR(fs.uuid, "0f5a7f3c-1111-2222-3333-444455556666");
+
+	put(32769, "CD001", 5);
+	probe_fs(buf, sizeof buf, &fs);
+	CHECK_STR(fs.uuid, "");
+}
+
+static void finds_raid_members(void)
+{
+	put(4096, "\xfc\x4e\x2b\xa9", 4);
+	CHECK_STR(type_of(), "raid");
+}
+
 static int probe_file(const char *path, struct fs_info *fs)
 {
 	FILE *f = fopen(path, "rb");
@@ -104,7 +133,8 @@ static void probes_a_real_ext4_image(void)
 	CHECK(fd >= 0 && !ftruncate(fd, 64 << 20));
 	close(fd);
 	char cmd[256];
-	snprintf(cmd, sizeof cmd, "mke2fs -q -F -t ext4 -L sistema %s >/dev/null 2>&1", path);
+	snprintf(cmd, sizeof cmd, "mke2fs -q -F -t ext4 -L sistema -U 0f5a7f3c-1111-2222-3333-444455556666 %s >/dev/null 2>&1",
+		 path);
 	if (system(cmd)) {
 		printf("skip probes_a_real_ext4_image (no mke2fs)\n");
 		unlink(path);
@@ -114,6 +144,27 @@ static void probes_a_real_ext4_image(void)
 	CHECK(!probe_file(path, &fs));
 	CHECK_STR(fs.type, "ext4");
 	CHECK_STR(fs.label, "sistema");
+	CHECK_STR(fs.uuid, "0f5a7f3c-1111-2222-3333-444455556666");
+	unlink(path);
+}
+
+static void probes_a_real_fat_image(void)
+{
+	char path[] = "/tmp/fsprobe-XXXXXX";
+	int fd = mkstemp(path);
+	CHECK(fd >= 0 && !ftruncate(fd, 64 << 20));
+	close(fd);
+	char cmd[256];
+	snprintf(cmd, sizeof cmd, "mkfs.vfat -F 32 -i 1234abcd %s >/dev/null 2>&1", path);
+	if (system(cmd)) {
+		printf("skip probes_a_real_fat_image (no mkfs.vfat)\n");
+		unlink(path);
+		return;
+	}
+	struct fs_info fs;
+	CHECK(!probe_file(path, &fs));
+	CHECK_STR(fs.type, "vfat");
+	CHECK_STR(fs.uuid, "1234-abcd");
 	unlink(path);
 }
 
@@ -125,5 +176,8 @@ int main(void)
 	RUN(reads_labels);
 	RUN(a_short_read_is_unknown);
 	RUN(probes_a_real_ext4_image);
+	RUN(reads_the_uuid_grub_searches_for);
+	RUN(finds_raid_members);
+	RUN(probes_a_real_fat_image);
 	return CHECK_DONE();
 }

@@ -59,6 +59,25 @@ static void measures_free_space_of_usable_partitions(void)
 	fake_teardown();
 }
 
+static void lists_file_systems_on_whole_disks(void)
+{
+	setup_machine();
+	fake_disk("sdc", 512);
+	fake_sh("mkdir -p mnt-%s", "sdc");
+	fake_device("sdc", "mke2fs -q -F -t ext4 -L inteiro");
+	fake_disk("sdd", 512);
+	fake_sh("truncate -s 8M dev/block/%s", "sdd");
+	count = find_partitions(&fake_env, &FAKE_OPS, parts, 16);
+	CHECK(named("sdc") != NULL);
+	CHECK_STR(named("sdc")->fs, "ext4");
+	CHECK_STR(named("sdc")->disk, "sdc");
+	CHECK(named("sdc")->number == 0);
+	CHECK(named("sdc")->free > 0);
+	CHECK(named("sdd") == NULL);
+	CHECK(named("sda") == NULL);
+	fake_teardown();
+}
+
 static void prefers_the_esp_on_the_target_disk(void)
 {
 	struct partition list[3] = { { .name = "sdb1", .disk = "sdb", .is_esp = 1 },
@@ -85,6 +104,7 @@ int main(void)
 	RUN(lists_partitions_with_their_file_systems);
 	RUN(marks_the_esp_from_the_partition_table);
 	RUN(measures_free_space_of_usable_partitions);
+	RUN(lists_file_systems_on_whole_disks);
 	RUN(prefers_the_esp_on_the_target_disk);
 	RUN(marks_every_partition_of_the_live_disk);
 	return CHECK_DONE();

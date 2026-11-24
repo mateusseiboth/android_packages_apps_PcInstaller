@@ -15,6 +15,8 @@ static const struct fs_rule FS_RULES[] = {
 	{ "vfat", NULL, 0, FAT32_LIMIT, "vfat" },
 	{ "bitlocker", "bitlocker", 0, NO_LIMIT, NULL },
 	{ "luks", "encrypted", 0, NO_LIMIT, NULL },
+	{ "lvm", "lvm", 0, NO_LIMIT, NULL },
+	{ "raid", "raid", 0, NO_LIMIT, NULL },
 };
 
 static const struct fs_rule UNSUPPORTED = { "unknown", "fs_unsupported", 0, NO_LIMIT, NULL };
@@ -81,8 +83,13 @@ static int is_one_of(const char *v, const char *const *set)
 	return 0;
 }
 
-static const char *check_uefi(const struct plan_ctx *c) { return c->m->is_uefi ? NULL : "not_uefi"; }
-static const char *check_esp(const struct plan_ctx *c) { return c->m->has_esp ? NULL : "no_esp"; }
+/* UEFI puts GRUB on an ESP; BIOS puts its core image in the gap before the first partition. */
+static const char *check_boot(const struct plan_ctx *c)
+{
+	static const char *const MISSING[] = { "no_boot_room", "no_esp" };
+	int has_room = c->m->is_uefi ? c->m->has_esp : c->m->has_boot_room;
+	return has_room ? NULL : MISSING[c->m->is_uefi != 0];
+}
 static const char *check_folder(const struct plan_ctx *c) { return is_valid_folder(c->r->folder) ? NULL : "bad_folder"; }
 static const char *check_source(const struct plan_ctx *c) { return c->p->is_source ? "source_partition" : NULL; }
 static const char *check_fs(const struct plan_ctx *c) { return c->rule->reason; }
@@ -138,7 +145,7 @@ static const char *check_space(const struct plan_ctx *c)
 }
 
 static const char *(*const CHECKS[])(const struct plan_ctx *) = {
-	check_uefi,	     check_esp,	      check_folder,	check_source, check_fs,	  check_forms,
+	check_boot,	     check_folder,	check_source, check_fs,	  check_forms,
 	check_folders_allowed, check_existing_data, check_data_size, check_file_limit, check_space,
 };
 

@@ -6,8 +6,9 @@
 #define PROBE_BYTES (68 * 1024)
 
 struct fs_info {
-	char type[16]; /* ext4 f2fs btrfs erofs ntfs exfat vfat iso9660 swap bitlocker luks lvm unknown */
+	char type[16]; /* ext4 f2fs btrfs erofs ntfs exfat vfat iso9660 swap bitlocker luks lvm raid unknown */
 	char label[64];
+	char uuid[40]; /* as GRUB's search --fs-uuid prints it; empty when GRUB has none for the type */
 };
 
 /* 0 when a signature matched; otherwise -1 with type "unknown". */

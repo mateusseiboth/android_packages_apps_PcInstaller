@@ -28,6 +28,7 @@ struct install_state {
 
 /* How this computer boots. */
 struct machine {
-	int is_uefi; /* the live system was started by UEFI firmware (efivarfs is there) */
-	int has_esp;
+	int is_uefi;       /* started by UEFI firmware (efivarfs is there); else BIOS */
+	int has_esp;       /* UEFI: an ESP to hold GRUB */
+	int has_boot_room; /* BIOS: room for GRUB's core image on the target disk */
 };

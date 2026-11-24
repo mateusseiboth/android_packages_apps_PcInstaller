@@ -69,7 +69,8 @@ static const struct partition *find_requested(const struct request *q)
 
 static struct machine read_machine(const struct server *s, const struct partition *target)
 {
-	return (struct machine){ is_dir(s->env->efivars), target && find_esp(s->parts, s->count, target) != NULL };
+	return (struct machine){ .is_uefi = is_dir(s->env->efivars),
+				 .has_esp = target && find_esp(s->parts, s->count, target) != NULL };
 }
 
 /* ---- INFO ----------------------------------------------------------------------------- */

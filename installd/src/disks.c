@@ -118,20 +118,70 @@ static void read_partition(const struct sys_env *env, const struct sys_ops *ops,
 	measure_free(env, ops, p);
 }
 
-int find_partitions(const struct sys_env *env, const struct sys_ops *ops, struct partition *out, int max)
+/* A disk formatted as a whole, without a partition table (a USB stick, say). */
+static int read_whole_disk(const struct sys_env *env, const struct sys_ops *ops, const char *name, struct partition *p)
+{
+	*p = (struct partition){ 0 };
+	snprintf(p->name, sizeof p->name, "%.31s", name);
+	snprintf(p->disk, sizeof p->disk, "%.31s", name);
+	probe_partition(env, p);
+	if (!strcmp(p->fs, "unknown"))
+		return -1;
+	char path[PATH_MAX];
+	unsigned long long v = 0;
+	build_sys_path(path, sizeof path, env, name, "size");
+	p->size = read_u64(path, &v) ? 0 : v * 512;
+	measure_free(env, ops, p);
+	return 0;
+}
+
+static int has_listed_partition(const struct partition *parts, int count, const char *disk)
+{
+	for (int i = 0; i < count; i++)
+		if (!strcmp(parts[i].disk, disk))
+			return 1;
+	return 0;
+}
+
+typedef int (*entry_visitor)(const struct sys_env *env, const struct sys_ops *ops, const char *name,
+			     struct partition *out, int count, int max);
+
+static int visit_partition(const struct sys_env *env, const struct sys_ops *ops, const char *name,
+			   struct partition *out, int count, int max)
+{
+	if (count >= max || !is_partition(env, name))
+		return count;
+	read_partition(env, ops, name, &out[count]);
+	return count + 1;
+}
+
+static int visit_whole_disk(const struct sys_env *env, const struct sys_ops *ops, const char *name,
+			    struct partition *out, int count, int max)
+{
+	if (count >= max || is_partition(env, name) || has_listed_partition(out, count, name))
+		return count;
+	return read_whole_disk(env, ops, name, &out[count]) ? count : count + 1;
+}
+
+static int visit_block_devices(const struct sys_env *env, const struct sys_ops *ops, entry_visitor visit,
+			       struct partition *out, int count, int max)
 {
 	char path[PATH_MAX];
 	snprintf(path, sizeof path, "%s/class/block", env->sysfs);
 	DIR *d = opendir(path);
-	int count = 0;
-	for (struct dirent *e; d && count < max && (e = readdir(d));) {
-		if (e->d_name[0] == '.' || !is_candidate(e->d_name) || !is_partition(env, e->d_name))
-			continue;
-		read_partition(env, ops, e->d_name, &out[count++]);
-	}
+	for (struct dirent *e; d && (e = readdir(d));)
+		if (e->d_name[0] != '.' && is_candidate(e->d_name))
+			count = visit(env, ops, e->d_name, out, count, max);
 	if (d)
 		closedir(d);
 	return count;
+}
+
+/* Partitions first, then disks that have none of their own. */
+int find_partitions(const struct sys_env *env, const struct sys_ops *ops, struct partition *out, int max)
+{
+	int count = visit_block_devices(env, ops, visit_partition, out, 0, max);
+	return visit_block_devices(env, ops, visit_whole_disk, out, count, max);
 }
 
 const struct partition *find_partition(const struct partition *parts, int count, const char *name)
