@@ -272,11 +272,11 @@ int find_usb_source(const struct sys_env *env, const struct sys_ops *ops, const 
 int read_source_build(const struct sys_env *env, const struct sys_ops *ops, const struct live_source *s,
 		      struct build_info *out)
 {
-	char image[PATH_MAX + 16], mnt[PATH_MAX / 2], dev[64], prop[PATH_MAX];
+	char image[PATH_MAX + 16], mnt[PATH_MAX / 2], prop[PATH_MAX];
 	snprintf(image, sizeof image, "%s/system.img", s->dir);
 	snprintf(mnt, sizeof mnt, "%s/image", env->work);
 	make_dirs(mnt, 0700);
-	if (ops->attach_loop(env, image, dev, sizeof dev) || ops->mount(env, dev, mnt, "ext4", 1))
+	if (ops->mount_image(env, image, mnt))
 		return -1;
 	snprintf(prop, sizeof prop, "%s/system/build.prop", mnt);
 	int failed = read_build_file(prop, out);

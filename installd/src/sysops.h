@@ -19,8 +19,8 @@ struct sys_env {
 struct sys_ops {
 	int (*mount)(const struct sys_env *env, const char *dev, const char *dir, const char *fs, int read_only);
 	int (*umount)(const struct sys_env *env, const char *dir);
-	/* Attaches file read-only to a free loop device; writes its /dev path to dev. */
-	int (*attach_loop)(const struct sys_env *env, const char *file, char *dev, size_t cap);
+	/* Mounts the ext4 image file read-only on dir through a loop device, which goes away on umount. */
+	int (*mount_image)(const struct sys_env *env, const char *file, const char *dir);
 	/* The device (major:minor) holding the file behind a loop device. */
 	int (*find_loop_backing)(const struct sys_env *env, const char *loop_name, unsigned *major, unsigned *minor);
 	int (*make_ext4)(const struct sys_env *env, const char *image);

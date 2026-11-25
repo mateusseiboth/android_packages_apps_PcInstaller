@@ -194,11 +194,8 @@ static int write_system_image(struct run *r) { return copy_into_folder(r, "syste
 
 static int mount_system_image(struct run *r)
 {
-	char dev[64];
 	make_dirs(r->image, 0700);
-	if (r->job->ops->attach_loop(r->job->env, in_source(r, "system.img"), dev, sizeof dev))
-		return -1;
-	r->image_mounted = !r->job->ops->mount(r->job->env, dev, r->image, "ext4", 1);
+	r->image_mounted = !r->job->ops->mount_image(r->job->env, in_source(r, "system.img"), r->image);
 	return r->image_mounted ? 0 : -1;
 }
 

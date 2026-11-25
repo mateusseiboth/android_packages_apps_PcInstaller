@@ -84,12 +84,11 @@ static inline int fake_umount(const struct sys_env *env, const char *dir)
 	return unlink(dir) || mkdir(dir, 0755);
 }
 
-static inline int fake_attach_loop(const struct sys_env *env, const char *file, char *dev, size_t cap)
+/* An image is "mounted" from loop9. */
+static inline int fake_mount_image(const struct sys_env *env, const char *file, const char *dir)
 {
-	(void)env;
 	(void)file;
-	snprintf(dev, cap, "/dev/block/loop9");
-	return 0;
+	return fake_mount(env, "/dev/block/loop9", dir, "ext4", 1);
 }
 
 static unsigned fake_backing_major = 8, fake_backing_minor = 17;
@@ -131,7 +130,7 @@ static inline int fake_fill_random(const struct sys_env *env, void *buf, size_t 
 	return 0;
 }
 
-static const struct sys_ops FAKE_OPS = { fake_mount, fake_umount, fake_attach_loop, fake_find_loop_backing,
+static const struct sys_ops FAKE_OPS = { fake_mount, fake_umount, fake_mount_image, fake_find_loop_backing,
 					 fake_make_ext4, fake_mount_efivars, fake_fill_random };
 
 static inline void fake_setup(void)
