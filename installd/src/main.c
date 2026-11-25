@@ -20,8 +20,7 @@
 #include "grubcfg.h"
 #include "proto.h"
 #include "server.h"
-
-#define AID_SYSTEM 1000
+#include "util.h"
 
 /* ---- serving -------------------------------------------------------------------------- */
 
@@ -31,14 +30,14 @@ static void send_reply(void *ctx, const char *line)
 	send(fd, line, strlen(line), MSG_NOSIGNAL);
 }
 
-/* Only root and the system app (android.uid.system) may drive the installer. */
+/* Only root and the system app of any user may drive the installer (and, on a host, its own user). */
 static int is_trusted_peer(int fd)
 {
 	struct ucred cred;
 	socklen_t len = sizeof cred;
 	if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len))
 		return 0;
-	return cred.uid == 0 || cred.uid == AID_SYSTEM || cred.uid == getuid();
+	return is_trusted_uid(cred.uid) || cred.uid == getuid();
 }
 
 static void serve_client(struct server *s, int fd)
@@ -74,10 +73,12 @@ static int serve(int listener, struct server *s)
 	}
 }
 
+/* init creates and binds /dev/socket/pc_installd (pc-installd.rc); listening is the service's job. */
 static int open_init_socket(void)
 {
-	const char *fd = getenv("ANDROID_SOCKET_pc_installd");
-	return fd ? atoi(fd) : -1;
+	const char *env = getenv("ANDROID_SOCKET_pc_installd");
+	int fd = env ? atoi(env) : -1;
+	return fd >= 0 && !listen(fd, 4) ? fd : -1;
 }
 
 static int open_path_socket(const char *path)

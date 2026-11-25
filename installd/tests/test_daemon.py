@@ -66,6 +66,42 @@ class SocketTest(unittest.TestCase):
                          "ERR code=source_missing")
 
 
+
+class InitSocketTest(unittest.TestCase):
+    # On Android, init creates and binds /dev/socket/pc_installd and passes it in
+    # ANDROID_SOCKET_pc_installd; listening is the service's job.
+    def test_serves_on_the_socket_init_created(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        for d in ("sys/class/block", "dev/block", "work"):
+            (root / d).mkdir(parents=True)
+        (root / "mountinfo").write_text("1 0 8:1 / / rw - ext4 /dev/sda1 rw\n")
+        (root / "cmdline").write_text("quiet\n")
+        path = str(root / "init-sock")
+        bound = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        bound.bind(path)
+        env = dict(os.environ, ANDROID_SOCKET_pc_installd=str(bound.fileno()))
+        proc = subprocess.Popen([str(EXE), "--root", str(root)], env=env, pass_fds=[bound.fileno()])
+        self.addCleanup(proc.wait)
+        self.addCleanup(proc.kill)
+        bound.close()
+        reply = ""
+        for _ in range(100):
+            if proc.poll() is not None:
+                break
+            try:
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+                    s.connect(path)
+                    s.sendall(b"INFO\n")
+                    reply = s.makefile().readline()
+                break
+            except ConnectionRefusedError:
+                time.sleep(0.02)
+        self.assertIsNone(proc.poll(), "pc-installd exited")
+        self.assertTrue(reply.startswith("INFO version="), reply)
+
+
 class CmdlineTest(unittest.TestCase):
     @unittest.skipUnless((ISO_DIR / "build_iso.py").exists(), "needs the device tree")
     def test_matches_the_live_iso(self):

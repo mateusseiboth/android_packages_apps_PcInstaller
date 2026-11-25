@@ -86,3 +86,11 @@ int load_file(const char *path, size_t max, unsigned char **data, size_t *len)
 	*len = got;
 	return 0;
 }
+
+#define AID_SYSTEM 1000
+#define AID_USER_OFFSET 100000
+
+int is_trusted_uid(unsigned uid)
+{
+	return uid == 0 || uid % AID_USER_OFFSET == AID_SYSTEM;
+}

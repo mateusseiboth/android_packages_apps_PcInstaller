@@ -2,6 +2,7 @@
 service pc_installd /system_ext/bin/pc-installd
     user root
     group root system
-    socket pc_installd stream 0660 root system
+    # Any user's system app connects (HSUM: user 10's gid is not system); pc-installd checks the uid.
+    socket pc_installd stream 0666 root system
     disabled
     oneshot
