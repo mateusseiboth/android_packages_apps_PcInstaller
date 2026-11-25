@@ -184,6 +184,14 @@ time. In Soong: `PcInstallerCoreTests` (`java_test_host`, `atest`-able).
 - **LVM and RAID.** Android has no LVM or md tools to assemble the volumes, so their members are listed with
   the reason instead of being offered.
 
+## Screenshots
+
+Taken in QEMU/KVM at 1920x1080 from the live ISO.
+
+![Installer, first page.](docs/screenshots/14-installer.png)
+
+Installer, first page.
+
 ## Credits
 
 - [LineageOS](https://lineageos.org) ([GitHub](https://github.com/LineageOS)): the base system and build this is part of.
