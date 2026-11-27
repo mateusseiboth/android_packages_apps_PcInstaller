@@ -37,6 +37,8 @@ data class FlowState(
     /** Installed system: its build and edition, and what the online list offers (null until checked). */
     val running: RunningBuild? = null,
     val offer: Offer? = null,
+    /** While Task.DOWNLOAD runs. */
+    val download: DownloadProgress? = null,
 ) {
     fun keyStep(): KeyStep = when {
         source?.uefi != true -> KeyStep.NONE
@@ -97,6 +99,7 @@ sealed interface FlowEvent {
     data class OfferFailed(val error: InstallError) : FlowEvent
     data object DownloadStarted : FlowEvent
     data class DownloadFailed(val error: InstallError) : FlowEvent
+    data class DownloadProgressed(val progress: DownloadProgress) : FlowEvent
 }
 
 /** The installer's screens as a pure state machine; the view model runs the daemon calls and feeds events. */
@@ -148,9 +151,13 @@ object InstallerFlow {
         is FlowEvent.OfferFound -> s.copy(offer = e.offer, error = null)
         is FlowEvent.OfferFailed -> s.copy(offer = null, error = e.error)
         // A download ends in PackageRead (the package screen) or DownloadFailed, never in Installed.
-        FlowEvent.DownloadStarted -> startTask(s.copy(error = null), Task.DOWNLOAD)
-        is FlowEvent.DownloadFailed -> s.copy(screen = Screen.UPDATE_HOME, error = e.error)
+        FlowEvent.DownloadStarted -> startTask(s.copy(error = null, download = null), Task.DOWNLOAD)
+        is FlowEvent.DownloadFailed -> s.copy(screen = Screen.UPDATE_HOME, download = null, error = shownError(e.error))
+        is FlowEvent.DownloadProgressed -> s.copy(download = e.progress, percent = e.progress.percent)
     }
+
+    /** Cancelling is the person's choice, not an error to show. */
+    private fun shownError(error: InstallError): InstallError? = error.takeUnless { it == InstallError.DOWNLOAD_CANCELLED }
 
     /** A file that does not fit the running system never starts. */
     private fun onPackageStarted(s: FlowState): FlowState {

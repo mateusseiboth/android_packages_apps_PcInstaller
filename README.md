@@ -26,8 +26,17 @@ the device tree only adds both to `PRODUCT_PACKAGES`.
     repository's README). It offers the update of the installed edition when its `build` is newer than the
     running `ro.system.build.date.utc` and it has a `url`, and the patches whose `build` is the running one and
     that are not applied yet (same name and version). "Download" saves the file in the app's files
-    (`files/downloads/`, one file at most), checks its size and sha256, and goes on as a picked file. Otherwise:
-    "Your system is up to date.", or a plain message when the list or the download cannot be reached.
+    (`files/downloads/package.tar`, one file at most, with `package.source` holding its url and sha256), shows
+    received and total size, speed over the last seconds and time left, checks size and sha256 over the whole
+    file, and goes on as a picked file. Otherwise: "Your system is up to date.", or a plain message when the
+    list or the download cannot be reached.
+    - **Resume:** a download that stopped (network error, Cancel, app closed) continues from the bytes already
+      saved with a `Range` request when the server answers 206, and starts over on 200 (or after 416). Only
+      the same package resumes (same url and sha256); a file that fails the final check is deleted.
+    - **Slow mirror:** when a connection stays under about 200 KB/s for 20 s (after a first 5 s window), or
+      sends nothing for 20 s, the app drops it and asks the original url again, so SourceForge picks another
+      mirror, resuming with `Range`. After three such switches it keeps the mirror it gets.
+    - **Cancel** stops the download and keeps the partial file for the next "Download".
   - **Install from a file:** "Choose the update file" opens the system file picker; pick the
     `lineage-pc-update-*.tar` downloaded from SourceForge. The app shows its version, the installed system,
     the edition (with Google services, microG, or without) and its size, or a plain message when it is for

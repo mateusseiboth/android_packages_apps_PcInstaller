@@ -36,6 +36,7 @@ class InstallerViewModel(application: Application) : AndroidViewModel(applicatio
 
     /** Holds the one file downloaded from the online list, until it is applied or another download starts. */
     private val downloadDir = File(application.filesDir, "downloads")
+    private var downloadCancel: DownloadCancel? = null
 
     private val _state = MutableStateFlow(FlowState())
     val state: StateFlow<FlowState> = _state.asStateFlow()
@@ -106,14 +107,26 @@ class InstallerViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    /** Downloads an update or patch from the online list, then reads it like a picked file. */
+    /** Downloads (or resumes) an update or patch from the online list, then reads it like a picked file. */
     fun download(entry: CatalogEntry) {
         if (_busy.value) return
+        val cancel = DownloadCancel().also { downloadCancel = it }
         on(FlowEvent.DownloadStarted)
         runTask {
-            OnlineUpdates.download(entry, downloadDir) { on(FlowEvent.Progressed(InstallStep.DOWNLOAD, it)) }
+            PackageDownload(entry, downloadDir, cancel) { on(FlowEvent.DownloadProgressed(it)) }.run()
                 .fold(::readDownloaded, FlowEvent::DownloadFailed)
         }
+    }
+
+    /** Stops the download and keeps its partial file; the task then ends with DOWNLOAD_CANCELLED. */
+    fun cancelDownload() {
+        val cancel = downloadCancel ?: return
+        Thread(cancel::cancel).start()
+    }
+
+    /** The app is closing: stop the download thread; the next download resumes the file. */
+    override fun onCleared() {
+        cancelDownload()
     }
 
     private fun readDownloaded(file: File): FlowEvent {

@@ -75,10 +75,7 @@ enum class DataForm(val wire: String) { IMAGE("image"), FOLDER("folder"), KEEP("
 
 enum class InstallStep(val wire: String) {
     PREPARE("prepare"), KERNEL("kernel"), SYSTEM("system"), DATA("data"), BOOT("boot"), REMOVE("remove"),
-    FINISH("finish"),
-    /** The app's own step: downloading an update or patch file. */
-    DOWNLOAD("download"),
-    UNKNOWN("");
+    FINISH("finish"), UNKNOWN("");
 
     companion object {
         fun fromWire(wire: String?): InstallStep = entries.firstOrNull { it.wire == wire } ?: UNKNOWN
@@ -182,6 +179,8 @@ enum class InstallError(val code: String) {
     /** A download stopped, or its size or sha256 is not the list's. */
     DOWNLOAD_FAILED("download_failed"),
     DOWNLOAD_DAMAGED("download_damaged"),
+    /** The person cancelled a download; its partial file stays for a later resume. */
+    DOWNLOAD_CANCELLED("download_cancelled"),
     UNKNOWN("unknown");
 
     companion object {

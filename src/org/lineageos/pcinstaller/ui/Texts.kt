@@ -7,6 +7,8 @@ import java.util.Date
 import java.util.Locale
 import org.lineageos.pcinstaller.R
 import org.lineageos.pcinstaller.core.DataForm
+import org.lineageos.pcinstaller.core.DownloadPhase
+import org.lineageos.pcinstaller.core.DownloadProgress
 import org.lineageos.pcinstaller.core.InstallError
 import org.lineageos.pcinstaller.core.InstallStep
 import org.lineageos.pcinstaller.core.SystemForm
@@ -76,7 +78,6 @@ object Texts {
         InstallStep.BOOT to R.string.step_boot,
         InstallStep.REMOVE to R.string.step_remove,
         InstallStep.FINISH to R.string.step_finish,
-        InstallStep.DOWNLOAD to R.string.step_download,
     )
 
     private val SYSTEM_FORMS = mapOf(SystemForm.IMAGE to R.string.system_image, SystemForm.FOLDER to R.string.system_folder)
@@ -116,6 +117,30 @@ object Texts {
         val date = date(utcSeconds, locale).takeIf { utcSeconds > 0 }
         return listOfNotNull(date, edition).joinToString(", ")
     }
+
+    private val DOWNLOAD_PHASES = mapOf(
+        DownloadPhase.CONNECTING to R.string.download_connecting,
+        DownloadPhase.DOWNLOADING to R.string.step_download,
+        DownloadPhase.CHECKING to R.string.download_checking,
+    )
+
+    /** Seconds left: under a minute, minutes, or hours and minutes. */
+    private val TIME_LEFT: List<Pair<Long, (Context, Long) -> String>> = listOf(
+        60L to { c, _ -> c.getString(R.string.time_left_under_minute) },
+        3_600L to { c, s -> c.getString(R.string.time_left_minutes, (s + 59) / 60) },
+        Long.MAX_VALUE to { c, s -> c.getString(R.string.time_left_hours, s / 3_600, s % 3_600 / 60) },
+    )
+
+    fun downloadPhase(phase: DownloadPhase): Int = DOWNLOAD_PHASES.getValue(phase)
+
+    fun timeLeft(context: Context, seconds: Long): String = TIME_LEFT.first { seconds < it.first }.second(context, seconds)
+
+    /** "235 MB of 1.9 GB · 6.1 MB/s · 4 min left", leaving out what is not known yet. */
+    fun downloadDetails(context: Context, p: DownloadProgress): String = listOfNotNull(
+        context.getString(R.string.download_bytes, bytes(context, p.done), bytes(context, p.total)).takeIf { p.total > 0 },
+        context.getString(R.string.download_speed, bytes(context, p.bytesPerSecond)).takeIf { p.bytesPerSecond > 0 },
+        p.secondsLeft?.let { timeLeft(context, it) },
+    ).joinToString(" · ")
 
     fun bytes(context: Context, bytes: Long): String = Formatter.formatFileSize(context, bytes)
 }

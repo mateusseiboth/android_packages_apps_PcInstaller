@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import org.lineageos.pcinstaller.R
 import org.lineageos.pcinstaller.core.CatalogEntry
 import org.lineageos.pcinstaller.core.DataForm
+import org.lineageos.pcinstaller.core.DownloadPhase
 import org.lineageos.pcinstaller.core.FlowState
 import org.lineageos.pcinstaller.core.InstallError
 import org.lineageos.pcinstaller.core.InstallRules
@@ -88,6 +89,7 @@ class Actions(
     val removePatch: () -> Unit,
     val checkForUpdates: () -> Unit,
     val download: (CatalogEntry) -> Unit,
+    val cancelDownload: () -> Unit,
 )
 
 @Composable
@@ -377,10 +379,9 @@ private val TASK_TITLES = mapOf(
     Task.APPLY_UPDATE to R.string.updating_title,
     Task.APPLY_PATCH to R.string.applying_patch_title,
     Task.REMOVE_PATCH to R.string.removing_patch_title,
-    Task.DOWNLOAD to R.string.downloading_title,
 )
 
-/** Only the installs and updates from a USB drive need the drive to stay in. */
+/** Only the installs and updates from a USB drive need the drive to stay in. Downloads: DownloadingScreen. */
 private val TASK_BODIES = mapOf(
     Task.INSTALL to R.string.installing_body,
     Task.UPDATE to R.string.installing_body,
@@ -388,11 +389,11 @@ private val TASK_BODIES = mapOf(
     Task.APPLY_UPDATE to R.string.package_progress_body,
     Task.APPLY_PATCH to R.string.package_progress_body,
     Task.REMOVE_PATCH to R.string.package_progress_body,
-    Task.DOWNLOAD to R.string.downloading_body,
 )
 
 @Composable
-fun InstallingScreen(state: FlowState) {
+fun InstallingScreen(state: FlowState, actions: Actions) {
+    if (state.task == Task.DOWNLOAD) return DownloadingScreen(state, actions)
     Page(icon = Icons.Rounded.Downloading, title = stringResource(TASK_TITLES.getValue(state.task)),
         body = stringResource(TASK_BODIES.getValue(state.task))) {
         Column(Modifier.fillMaxWidth().padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -405,6 +406,33 @@ fun InstallingScreen(state: FlowState) {
                 modifier = Modifier.fillMaxWidth().height(12.dp),
                 strokeCap = StrokeCap.Round,
             )
+        }
+    }
+}
+
+/** Received and total size, speed and time left, with a bar that moves by fractions; Cancel keeps the part. */
+@Composable
+private fun DownloadingScreen(state: FlowState, actions: Actions) {
+    val context = LocalContext.current
+    val progress = state.download
+    Page(
+        icon = Icons.Rounded.Downloading,
+        title = stringResource(R.string.downloading_title),
+        body = stringResource(R.string.downloading_body),
+        actions = { OutlinedButton(onClick = actions.cancelDownload) { Text(stringResource(R.string.cancel)) } },
+    ) {
+        Column(Modifier.fillMaxWidth().padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(Texts.downloadPhase(progress?.phase ?: DownloadPhase.CONNECTING)),
+                    style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Text("${state.percent}%", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            }
+            LinearProgressIndicator(
+                progress = { progress?.fraction ?: 0f },
+                modifier = Modifier.fillMaxWidth().height(12.dp),
+                strokeCap = StrokeCap.Round,
+            )
+            progress?.let { Hint(Texts.downloadDetails(context, it)) }
         }
     }
 }

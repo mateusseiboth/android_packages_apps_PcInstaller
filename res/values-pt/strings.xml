@@ -165,7 +165,7 @@
     <string name="offer_details">Versão %1$s, %2$s</string>
     <string name="offer_download">Baixar</string>
     <string name="downloading_title">Baixando…</string>
-    <string name="downloading_body">Mantenha o computador ligado e conectado à internet.</string>
+    <string name="downloading_body">Mantenha o computador ligado e conectado à internet. Você pode cancelar e continuar depois.</string>
     <string name="step_download">Baixando o arquivo</string>
     <string name="installed_system">Sistema instalado: %1$s.</string>
     <string name="installed_label">Sistema instalado</string>
@@ -176,4 +176,11 @@
     <string name="error_catalog_unreadable">Não foi possível ler a lista de atualizações. Tente de novo mais tarde.</string>
     <string name="error_download_failed">O download não terminou. Verifique a conexão com a internet e tente de novo.</string>
     <string name="error_download_damaged">O arquivo baixado está danificado. Tente de novo.</string>
+    <string name="download_bytes">%1$s de %2$s</string>
+    <string name="download_speed">%1$s/s</string>
+    <string name="time_left_under_minute">falta menos de 1 min</string>
+    <string name="time_left_minutes">faltam %1$d min</string>
+    <string name="time_left_hours">faltam %1$d h %2$d min</string>
+    <string name="download_connecting">Conectando…</string>
+    <string name="download_checking">Verificando o arquivo baixado</string>
 </resources>

@@ -37,7 +37,7 @@ private fun ScreenContent(screen: Screen, state: FlowState, busy: Boolean, isLiv
         Screen.PARTITIONS -> PartitionsScreen(state, busy, actions)
         Screen.FORMS -> FormsScreen(state, busy, actions)
         Screen.SUMMARY -> SummaryScreen(state, busy, actions)
-        Screen.INSTALLING -> InstallingScreen(state)
+        Screen.INSTALLING -> InstallingScreen(state, actions)
         Screen.DONE, Screen.REMOVED -> DoneScreen(state, busy, actions)
         Screen.FAILED -> FailedScreen(state, actions)
         Screen.UPDATE_HOME -> UpdateHomeScreen(state, busy, actions)
@@ -79,6 +79,7 @@ fun InstallerApp(viewModel: InstallerViewModel, isLive: Boolean, onReboot: () ->
         removePatch = viewModel::removePatch,
         checkForUpdates = viewModel::checkForUpdates,
         download = viewModel::download,
+        cancelDownload = viewModel::cancelDownload,
     )
     BackHandler(enabled = state.screen in BACKABLE) { viewModel.back() }
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {

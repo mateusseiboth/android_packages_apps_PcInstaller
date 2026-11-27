@@ -166,7 +166,7 @@
     <string name="offer_details">Version %1$s, %2$s</string>
     <string name="offer_download">Download</string>
     <string name="downloading_title">Downloading…</string>
-    <string name="downloading_body">Keep the computer on and connected to the internet.</string>
+    <string name="downloading_body">Keep the computer on and connected to the internet. You can cancel and continue later.</string>
     <string name="step_download">Downloading the file</string>
     <string name="installed_system">Installed system: %1$s.</string>
     <string name="installed_label">Installed system</string>
@@ -177,4 +177,11 @@
     <string name="error_catalog_unreadable">The list of updates could not be read. Try again later.</string>
     <string name="error_download_failed">The download did not finish. Check the internet connection and try again.</string>
     <string name="error_download_damaged">The downloaded file is damaged. Try again.</string>
+    <string name="download_bytes">%1$s of %2$s</string>
+    <string name="download_speed">%1$s/s</string>
+    <string name="time_left_under_minute">less than a minute left</string>
+    <string name="time_left_minutes">%1$d min left</string>
+    <string name="time_left_hours">%1$d h %2$d min left</string>
+    <string name="download_connecting">Connecting…</string>
+    <string name="download_checking">Checking the downloaded file</string>
 </resources>
