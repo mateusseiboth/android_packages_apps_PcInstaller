@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "layout.h"
+
 /* androidboot.selinux=permissive until the vendor policy is complete. */
 #define BASE_CMDLINE                                                                                \
 	"androidboot.hardware=pc androidboot.selinux=permissive firmware_class.path=/vendor/firmware " \
@@ -48,17 +50,33 @@ static void build_title(char *out, size_t cap, const char *format, const char *p
 /* ---- an install's entry --------------------------------------------------------------- */
 
 static int is_always(const struct entry_params *p) { (void)p; return 1; }
-static int has_previous(const struct entry_params *p) { return p->has_previous; }
+static int has_previous(const struct entry_params *p) { return p->previous & PREVIOUS_SYSTEM; }
+
+static const char *find_kernel(const struct entry_params *p) { (void)p; return KERNEL_FILE; }
+static const char *find_initrd(const struct entry_params *p) { (void)p; return INITRD_FILE; }
+
+/* The kernel and initrd from before the last update, when it kept them. */
+static const char *find_old_kernel(const struct entry_params *p)
+{
+	return p->previous & PREVIOUS_KERNEL ? KERNEL_OLD : KERNEL_FILE;
+}
+
+static const char *find_old_initrd(const struct entry_params *p)
+{
+	return p->previous & PREVIOUS_INITRD ? INITRD_OLD : INITRD_FILE;
+}
 
 /* The first variant is the main entry; the others go in its "more options" submenu. */
 static const struct {
 	const char *title;
 	const char *extra;
 	int (*is_wanted)(const struct entry_params *);
+	const char *(*kernel)(const struct entry_params *);
+	const char *(*initrd)(const struct entry_params *);
 } VARIANTS[] = {
-	{ "LineageOS (%s)", "quiet", is_always },
-	{ "LineageOS (%s), safe graphics", "nomodeset", is_always },
-	{ "LineageOS (%s), previous system", "pc.previous=1 quiet", has_previous },
+	{ "LineageOS (%s)", "quiet", is_always, find_kernel, find_initrd },
+	{ "LineageOS (%s), safe graphics", "nomodeset", is_always, find_kernel, find_initrd },
+	{ "LineageOS (%s), previous system", "pc.previous=1 quiet", has_previous, find_old_kernel, find_old_initrd },
 };
 
 static void put_variant(struct writer *w, const struct entry_params *p, size_t i, const char *indent)
@@ -71,10 +89,11 @@ static void put_variant(struct writer *w, const struct entry_params *p, size_t i
 	snprintf(text, sizeof text,
 		 "%1$smenuentry \"%2$s\"%3$s%4$s {\n"
 		 "%1$s    search --no-floppy --set=root --file /%5$s\n"
-		 "%1$s    linux /%6$s/kernel %7$s\n"
-		 "%1$s    initrd /%6$s/initrd.img\n"
+		 "%1$s    linux /%6$s/%8$s %7$s\n"
+		 "%1$s    initrd /%6$s/%9$s\n"
 		 "%1$s}\n",
-		 indent, title, i ? "" : " --id lineage-", i ? "" : p->id, id_file, p->folder, cmdline);
+		 indent, title, i ? "" : " --id lineage-", i ? "" : p->id, id_file, p->folder, cmdline,
+		 VARIANTS[i].kernel(p), VARIANTS[i].initrd(p));
 	put(w, text);
 }
 

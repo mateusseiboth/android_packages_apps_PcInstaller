@@ -11,8 +11,12 @@ struct entry_params {
 	const char *folder;
 	const char *id;    /* GRUB and pc-init find the folder by <folder>/install-<id>.id */
 	const char *title; /* where the install lives: partition label or name */
-	int has_previous;  /* system.old kept by an update */
+	int previous;      /* PREVIOUS_* flags: what an update or a kernel patch kept */
 };
+
+#define PREVIOUS_SYSTEM 1 /* system.old (or a staged update that makes the system system.old) */
+#define PREVIOUS_KERNEL 2 /* kernel.old: the previous system starts with its own kernel */
+#define PREVIOUS_INITRD 4 /* initrd.old.img */
 
 enum other_kind {
 	OTHER_EFI,         /* chainload an EFI loader on an ESP */

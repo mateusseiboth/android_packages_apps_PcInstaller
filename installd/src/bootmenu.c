@@ -8,6 +8,8 @@
 
 #include "biosboot.h"
 #include "efifiles.h"
+#include "grubcfg.h"
+#include "layout.h"
 #include "menus.h"
 #include "plan.h"
 #include "treecopy.h"
@@ -141,6 +143,14 @@ int apply_menu_entry(const struct sys_env *env, const struct sys_ops *ops, const
 		     const char *id, const char *entry)
 {
 	return run_in_places(env, ops, s, save_entry_in, id, entry);
+}
+
+int apply_install_entry(const struct sys_env *env, const struct sys_ops *ops, const struct machine_scan *s,
+			const struct partition *place, const char *folder, const char *dir, const char *id)
+{
+	char entry[8192];
+	struct entry_params p = { folder, id, find_place_name(place), read_previous_flags(dir) };
+	return build_install_entry(entry, sizeof entry, &p) || apply_menu_entry(env, ops, s, id, entry) ? -1 : 0;
 }
 
 /* ---- removing ------------------------------------------------------------------------- */

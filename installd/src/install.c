@@ -16,6 +16,7 @@
 #include "efiboot.h"
 #include "efifiles.h"
 #include "grubcfg.h"
+#include "layout.h"
 #include "treecopy.h"
 #include "util.h"
 
@@ -33,6 +34,8 @@ struct run {
 	void *ctx;
 	char target[PATH_MAX / 4], folder[PATH_MAX / 2], esp[PATH_MAX / 4], image[PATH_MAX / 4];
 	int target_mounted, esp_mounted, image_mounted, rotated;
+	int had_system;  /* an update: the kernel and initrd it replaces stay as kernel.old, initrd.old.img */
+	int kept_kernel; /* this run moved them there */
 	char removed_id[64]; /* uninstall: the id read from the folder */
 	struct machine_scan scan;
 	unsigned long long total, done_before, step_weight, step_total, step_done;
@@ -141,11 +144,15 @@ static int mount_at(struct run *r, const char *name, const char *dir, const char
 	return *mounted ? 0 : -1;
 }
 
+/* What the system being replaced had on top: patches for its build and an update staged for it. */
 static const char *step_prepare(struct run *r)
 {
 	if (mount_at(r, r->job->target->name, r->target, r->job->target->fs, &r->target_mounted))
 		return "mount_failed";
-	return make_dirs(r->folder, 0755) ? "io_error" : NULL;
+	if (make_dirs(r->folder, 0755))
+		return "io_error";
+	r->had_system = exists(in_folder(r, "system.img")) || exists(in_folder(r, "system"));
+	return remove_staged_update(r->folder) || remove_patches(r->folder) ? "io_error" : NULL;
 }
 
 /* Writes name.tmp then renames it, so a cut-off copy never looks like a finished one. */
@@ -160,9 +167,29 @@ static int copy_into_folder(struct run *r, const char *name)
 	return rename(tmp, in_folder(r, name));
 }
 
+static int copy_to_tmp(struct run *r, const char *name)
+{
+	char tmp[PATH_MAX];
+	snprintf(tmp, sizeof tmp, "%s.tmp", in_folder(r, name));
+	if (!copy_file(in_source(r, name), tmp, on_bytes, r))
+		return 0;
+	remove_tree(tmp);
+	return -1;
+}
+
+/* An update keeps the kernel and initrd it replaces for the previous system; an install drops stale ones. */
+static int swap_in_kernel(struct run *r)
+{
+	const char *kernel_old = r->had_system ? KERNEL_OLD : NULL, *initrd_old = r->had_system ? INITRD_OLD : NULL;
+	if (!r->had_system && (remove_tree(in_folder(r, KERNEL_OLD)) || remove_tree(in_folder(r, INITRD_OLD))))
+		return -1;
+	r->kept_kernel = r->had_system;
+	return swap_in_file(r->folder, KERNEL_FILE, kernel_old) || swap_in_file(r->folder, INITRD_FILE, initrd_old);
+}
+
 static const char *step_kernel(struct run *r)
 {
-	return copy_into_folder(r, "kernel") || copy_into_folder(r, "initrd.img") ? "copy_failed" : NULL;
+	return copy_to_tmp(r, KERNEL_FILE) || copy_to_tmp(r, INITRD_FILE) || swap_in_kernel(r) ? "copy_failed" : NULL;
 }
 
 /* ---- system: rotate, write, roll back ------------------------------------------------- */
@@ -181,6 +208,7 @@ static int rotate_system(struct run *r)
 	return 0;
 }
 
+/* The previous system goes back with its own kernel and initrd. */
 static void restore_system(struct run *r)
 {
 	for (size_t i = 0; i < 2; i++)
@@ -188,6 +216,10 @@ static void restore_system(struct run *r)
 	for (size_t i = 0; r->rotated && i < 2; i++)
 		if (exists(in_folder(r, SYSTEM_NAMES[i][1])))
 			rename(in_folder(r, SYSTEM_NAMES[i][1]), in_folder(r, SYSTEM_NAMES[i][0]));
+	if (r->kept_kernel) {
+		restore_old_file(r->folder, KERNEL_FILE, KERNEL_OLD);
+		restore_old_file(r->folder, INITRD_FILE, INITRD_OLD);
+	}
 }
 
 static int write_system_image(struct run *r) { return copy_into_folder(r, "system.img"); }
@@ -299,20 +331,11 @@ static int save_id_file(struct run *r)
 	return (fd >= 0 && close(fd)) || failed ? -1 : 0;
 }
 
-static const char *find_place_name(const struct partition *p) { return *p->label ? p->label : p->name; }
-
-static int has_previous_system(struct run *r)
-{
-	return exists(in_folder(r, "system.old.img")) || exists(in_folder(r, "system.old"));
-}
-
 /* Our entry goes into every GRUB menu on the computer. */
 static int save_menu_entries(struct run *r)
 {
-	char entry[8192];
-	struct entry_params p = { r->job->req.folder, r->job->id, find_place_name(r->job->target), has_previous_system(r) };
-	return build_install_entry(entry, sizeof entry, &p) ||
-	       apply_menu_entry(r->job->env, r->job->ops, &r->scan, r->job->id, entry);
+	return apply_install_entry(r->job->env, r->job->ops, &r->scan, r->job->target, r->job->req.folder, r->folder,
+				   r->job->id);
 }
 
 /* ---- UEFI: shim and GRUB in EFI/LineageOS on the ESP, and a boot entry ----------------- */
@@ -498,6 +521,8 @@ int run_install(const struct install_job *job, install_progress progress, void *
 static const char *const INSTALL_FILES[] = {
 	"kernel",     "kernel.tmp",	"initrd.img",	  "initrd.img.tmp", "system.img", "system.img.tmp", "system",
 	"system.tmp", "system.old.img", "system.old",	  "data.img",	    "data.img.tmp", "userdata",
+	KERNEL_OLD,   INITRD_OLD,	SYSTEM_NEW_IMAGE, SYSTEM_NEW_IMAGE ".tmp", SYSTEM_NEW_DIR, SYSTEM_NEW_DIR ".tmp",
+	UPDATE_LOCALE, UPDATE_LOCALE ".tmp", PATCHES_DIR,
 };
 
 static void read_install_id(struct run *r)

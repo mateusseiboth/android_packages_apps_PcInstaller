@@ -29,6 +29,10 @@ const char *find_menu_dir(int is_efi);
 void scan_machine(const struct sys_env *env, const struct sys_ops *ops, const struct partition *parts, int count,
 		  struct machine_scan *out);
 void add_menu_place(struct machine_scan *s, const struct partition *part, int is_efi);
+/* The entry of the install whose folder (named folder on place, mounted at dir) holds install-<id>.id,
+ * built from what that folder holds, in every menu of the scan. */
+int apply_install_entry(const struct sys_env *env, const struct sys_ops *ops, const struct machine_scan *s,
+			const struct partition *place, const char *folder, const char *dir, const char *id);
 int apply_menu_entry(const struct sys_env *env, const struct sys_ops *ops, const struct machine_scan *s,
 		     const char *id, const char *entry);
 /* A menu left without installs is removed, with the GRUB we put next to it. */
