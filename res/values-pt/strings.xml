@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Instalar o LineageOS</string>
+    <string name="updates_name">Atualizações do sistema</string>
     <string name="step_of">Passo %1$d de %2$d</string>
     <string name="back">Voltar</string>
     <string name="next">Continuar</string>

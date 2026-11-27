@@ -2,6 +2,7 @@
 <!-- English fallback. The installer speaks Brazilian Portuguese first (values-pt). -->
 <resources>
     <string name="app_name">Install LineageOS</string>
+    <string name="updates_name">System updates</string>
     <string name="step_of">Step %1$d of %2$d</string>
     <string name="back">Back</string>
     <string name="next">Continue</string>

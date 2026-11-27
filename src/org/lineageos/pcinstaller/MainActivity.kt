@@ -11,6 +11,7 @@ import org.lineageos.pcinstaller.ui.PcInstallerTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        LauncherEntry.choose(this)
         val viewModel = ViewModelProvider(this)[InstallerViewModel::class.java]
         setContent {
             PcInstallerTheme {
