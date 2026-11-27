@@ -37,6 +37,21 @@ object Texts {
         InstallError.RUNNING_SYSTEM to R.string.error_running_system,
         InstallError.NO_UPDATE_SOURCE to R.string.error_no_update_source,
         InstallError.DAEMON_UNREACHABLE to R.string.error_daemon_unreachable,
+        InstallError.BAD_PACKAGE to R.string.error_bad_package,
+        InstallError.BAD_SIGNATURE to R.string.error_bad_signature,
+        InstallError.NO_CERTIFICATE to R.string.error_no_certificate,
+        InstallError.WRONG_FLAVOR to R.string.error_wrong_flavor,
+        InstallError.WRONG_BASE to R.string.error_wrong_base,
+        InstallError.NO_ROOM to R.string.error_no_room,
+        InstallError.IO to R.string.error_io_error,
+        InstallError.FILE_UNREADABLE to R.string.error_file_unreadable,
+    )
+
+    /** An update's flavor, as the edition the person downloaded. */
+    private val EDITIONS = mapOf(
+        "gapps" to R.string.edition_gapps,
+        "microg" to R.string.edition_microg,
+        "none" to R.string.edition_none,
     )
 
     private val STEPS = mapOf(
@@ -72,6 +87,8 @@ object Texts {
     fun data(form: DataForm): Int = DATA_FORMS.getValue(form)
 
     fun fileSystem(context: Context, fs: String): String = FILE_SYSTEMS[fs] ?: context.getString(R.string.fs_unknown)
+
+    fun edition(context: Context, flavor: String): String = EDITIONS[flavor]?.let(context::getString) ?: flavor
 
     fun bytes(context: Context, bytes: Long): String = Formatter.formatFileSize(context, bytes)
 }

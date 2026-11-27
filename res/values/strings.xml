@@ -84,7 +84,6 @@
     <string name="error_daemon_unreachable">The installer service did not answer. Try again.</string>
     <string name="error_unknown">Something went wrong. Try again.</string>
 
-    <string name="update_title">Update LineageOS</string>
     <string name="update_body">Plug in the USB drive with the new version of LineageOS, then search for it.</string>
     <string name="update_current">Installed version: %1$s</string>
     <string name="update_search">Search for an update</string>
@@ -118,4 +117,49 @@
     <string name="key_needed">To start with Secure Boot on, this computer needs the LineageOS key. Prepare it now and confirm it on the next start.</string>
     <string name="key_prepare">Prepare the key</string>
     <string name="key_queued">On the next start, press a key, choose Enroll MOK, Continue and Yes, type the password %1$s and choose Reboot.</string>
+
+    <string name="settings_summary">Install updates and patches</string>
+    <string name="updates_welcome_body">Install updates and patches for LineageOS.</string>
+    <string name="updates_loading">Loading…</string>
+    <string name="updates_file_section">Install an update</string>
+    <string name="updates_file_body">Download the update file for your edition, then choose it here.</string>
+    <string name="updates_file_choose">Choose the update file</string>
+    <string name="patches_section">Patches</string>
+    <string name="patches_none">No patches applied.</string>
+    <string name="patch_apply">Apply a patch</string>
+    <string name="patch_version">Version %1$s</string>
+    <string name="patch_remove_title">Remove the patch %1$s?</string>
+    <string name="patch_remove_body">Restart the computer afterwards to finish removing it.</string>
+    <string name="usb_section">Update from a USB drive</string>
+    <string name="package_update_title">Install this update?</string>
+    <string name="package_patch_title">Apply this patch?</string>
+    <string name="package_unknown_title">This file cannot be used</string>
+    <string name="package_name">Patch</string>
+    <string name="package_description">What it fixes</string>
+    <string name="package_version">Version</string>
+    <string name="package_edition">Edition</string>
+    <string name="package_size">Size</string>
+    <string name="package_update_note">Your apps and data are kept. The update finishes when you restart.</string>
+    <string name="package_patch_note">The patch takes effect when you restart.</string>
+    <string name="package_install">Install update</string>
+    <string name="package_apply">Apply patch</string>
+    <string name="edition_gapps">With Google services</string>
+    <string name="edition_microg">With microG</string>
+    <string name="edition_none">Without Google services</string>
+    <string name="applying_patch_title">Applying the patch…</string>
+    <string name="removing_patch_title">Removing the patch…</string>
+    <string name="package_progress_body">Keep the computer on.</string>
+    <string name="update_ready_title">The update is ready</string>
+    <string name="update_ready_body">Restart to finish the update.</string>
+    <string name="patch_ready_title">The patch is ready</string>
+    <string name="patch_ready_body">Restart to finish applying the patch.</string>
+    <string name="patch_removed_title">The patch was removed</string>
+    <string name="patch_removed_body">Restart to finish removing the patch.</string>
+    <string name="error_bad_package">This file is damaged or is not a LineageOS update. Download it again.</string>
+    <string name="error_bad_signature">This file was not made by this project or was changed. Download it again from the project page.</string>
+    <string name="error_no_certificate">This computer is missing a file needed to check updates. Update once from a USB drive, then try again.</string>
+    <string name="error_wrong_flavor">This update is for another edition (with or without Google services). Download the one for your edition.</string>
+    <string name="error_wrong_base">This patch is for another version of the system.</string>
+    <string name="error_no_room">There is not enough free space. Free some space on the computer and try again.</string>
+    <string name="error_file_unreadable">The file could not be opened. Choose it again.</string>
 </resources>

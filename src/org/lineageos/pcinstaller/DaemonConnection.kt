@@ -4,6 +4,7 @@ import android.net.LocalSocket
 import android.net.LocalSocketAddress
 import android.os.SystemProperties
 import java.io.Closeable
+import java.io.FileDescriptor
 import java.io.IOException
 import org.lineageos.pcinstaller.core.InstallerClient
 import org.lineageos.pcinstaller.core.Transport
@@ -15,6 +16,19 @@ class LocalSocketTransport(private val socket: LocalSocket) : Transport, Closeab
     override fun send(line: String) {
         socket.outputStream.write(line.toByteArray(Charsets.UTF_8))
         socket.outputStream.flush()
+    }
+
+    /**
+     * LocalSocket attaches the pending descriptors to every write until they are cleared, so they go with this
+     * line's single write and are dropped right after.
+     */
+    override fun sendWithFile(line: String, file: FileDescriptor) {
+        socket.setFileDescriptorsForSend(arrayOf(file))
+        try {
+            send(line)
+        } finally {
+            socket.setFileDescriptorsForSend(null)
+        }
     }
 
     override fun readLine(): String? = reader.readLine()

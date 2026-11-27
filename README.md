@@ -17,8 +17,24 @@ the device tree only adds both to `PRODUCT_PACKAGES`.
 
 - **Live USB session:** install into a folder on a partition (UEFI or BIOS), update an install that is
   already in that folder (data kept), or remove it.
-- **Installed system:** "Update from a USB drive": plug in a newer live USB drive, the app finds it, shows
-  the installed and the new version, and updates the running install in place (data kept).
+- **Installed system:** the app is "System updates" (launcher, and Settings > System) and opens on its
+  updates screen (package format and daemon side: `device/pc/pc_x86_64/docs/UPDATES.md`):
+  - **Install an update:** "Choose the update file" opens the system file picker; pick the
+    `lineage-pc-update-*.tar` downloaded from SourceForge. The app shows its version, the installed version,
+    the edition (with Google services, microG, or without) and its size, or a plain message when it is for
+    another edition or the file is damaged or not signed by this build's key. "Install update" shows the
+    progress, then "Restart to finish the update".
+  - **Patches:** the applied patches (name, description, version), each with "Remove" (after a confirmation;
+    restart to finish). "Apply a patch" picks a `lineage-pc-patch-*.tar` the same way; a patch made for
+    another build is refused with "This patch is for another version of the system."
+  - **Update from a USB drive:** plug in a newer live USB drive, the app finds it, shows the installed and the
+    new version, and updates the running install in place (data kept).
+
+  Each package command reopens the chosen file and sends its descriptor with the command line
+  (`LocalSocket.setFileDescriptorsForSend`, cleared right after the write); `APPLY_PACKAGE` carries the app's
+  language tag (`locale=pt-BR`) for the boot screen that finishes an update. The Settings entry is the
+  `SettingsEntry` alias (`com.android.settings.action.IA_SETTINGS`, category `ia.system`); `LauncherEntry`
+  enables it with "System updates" and disables both in the live session.
 
 ## What an install produces
 
@@ -143,6 +159,13 @@ data lines, then `OK` or `ERR code=<error>`.
 | `UNINSTALL part= folder=` | `PROGRESS step=prepare/remove/boot/finish percent=` | removes the install and its menu entries |
 | `FIND_UPDATE` | `UPDATE source= version= build_utc= current_version= current_utc= newer=0/1 mok_enrolled= mok_queued=` | installed system: finds a live USB drive and makes it the source of the next `INSTALL` |
 | `ENROLL_KEY` | `MOK password=<8 digits>` | queues the source's key for MokManager (`source_missing` without it, `efi_failed` when the variables cannot be written) |
+| `PACKAGE_INFO` (+fd) | none: `OK type= version= name= description= flavor= build= current_build= current_flavor= kernel= initrd= system= overlay= size=` | installed system: reads an update or patch file; the app also refuses an update of another flavor and a patch whose `build` is not `current_build` |
+| `APPLY_PACKAGE locale=` (+fd) | `PROGRESS step= percent=`, then `OK reboot=1` | stages the update (next boot) or applies the patch |
+| `PATCHES` | `PATCH name= version= description= kernel= initrd=` | the applied patches |
+| `REMOVE_PATCH name=` | none: `OK reboot=1` | removes a patch on the next boot |
+
+`(+fd)`: the package's file descriptor travels with the line (`SCM_RIGHTS`). The four package commands are
+specified in `device/pc/pc_x86_64/docs/UPDATES.md`; the app also accepts `ERROR code=` as an error line.
 
 ### Errors
 
@@ -150,7 +173,9 @@ data lines, then `OK` or `ERR code=<error>`.
 `no_boot_room`, `fs_unsupported`, `bitlocker`, `encrypted`, `lvm`, `raid`, `fs_images_only`, `file_too_large`,
 `no_space`, `data_too_small`, `data_exists`, `no_data_to_keep`, `mount_failed`, `copy_failed`, `data_failed`,
 `esp_failed`, `efi_failed`, `boot_failed`, `menu_failed`, `io_error`, `not_installed`, `running_system`,
-`no_update_source`. The app adds `daemon_unreachable`. Each has a one or two sentence text in
+`no_update_source`, and for the package commands `bad_package`, `bad_signature`, `no_certificate`,
+`wrong_flavor`, `wrong_base`, `no_room`, `io`. The app adds `daemon_unreachable` and `file_unreadable` (the
+picked file cannot be opened). Each has a one or two sentence text in
 `res/values*/strings.xml`.
 
 ## Tests

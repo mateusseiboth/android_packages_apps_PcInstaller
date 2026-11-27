@@ -1,5 +1,6 @@
 package org.lineageos.pcinstaller
 
+import android.os.ParcelFileDescriptor
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -8,18 +9,27 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.FileDescriptor
 import org.lineageos.pcinstaller.core.DataForm
 import org.lineageos.pcinstaller.core.FlowEvent
 import org.lineageos.pcinstaller.core.FlowState
 import org.lineageos.pcinstaller.core.InstallError
 import org.lineageos.pcinstaller.core.InstallerClient
 import org.lineageos.pcinstaller.core.InstallerFlow
+import org.lineageos.pcinstaller.core.InstallStep
 import org.lineageos.pcinstaller.core.Partition
+import org.lineageos.pcinstaller.core.Patch
+import org.lineageos.pcinstaller.core.SourceInfo
 import org.lineageos.pcinstaller.core.SystemForm
 import org.lineageos.pcinstaller.core.fold
 
+/** Opens the update or patch file the person chose; each command gets a fresh descriptor at offset 0. */
+typealias PackageOpener = () -> ParcelFileDescriptor?
+
 /** Runs the daemon calls off the main thread and feeds their results to InstallerFlow. */
 class InstallerViewModel : ViewModel() {
+    private var openPackage: PackageOpener? = null
+
     private val _state = MutableStateFlow(FlowState())
     val state: StateFlow<FlowState> = _state.asStateFlow()
 
@@ -42,9 +52,61 @@ class InstallerViewModel : ViewModel() {
     }
 
     private fun load(client: InstallerClient): FlowEvent = client.info().fold(
-        { source -> client.partitions().fold({ FlowEvent.Loaded(source, it) }, FlowEvent::LoadFailed) },
+        { source -> client.partitions().fold({ FlowEvent.Loaded(source, it, findPatches(client, source)) }, FlowEvent::LoadFailed) },
         FlowEvent::LoadFailed,
     )
+
+    /** Only an installed system has patches; a daemon without PATCHES shows none. */
+    private fun findPatches(client: InstallerClient, source: SourceInfo): List<Patch> =
+        source.installed?.let { client.patches().fold({ it }, { emptyList() }) }.orEmpty()
+
+    private fun onProgress(step: InstallStep, percent: Int) =
+        on(FlowEvent.Progressed(step, percent))
+
+    /** Runs block with the chosen file open, closing it afterwards. */
+    private fun usePackage(
+        open: PackageOpener,
+        onFailed: (InstallError) -> FlowEvent,
+        block: (FileDescriptor) -> FlowEvent,
+    ): FlowEvent {
+        val file = runCatching(open).getOrNull() ?: return onFailed(InstallError.FILE_UNREADABLE)
+        return file.use { block(it.fileDescriptor) }
+    }
+
+    /** The person picked an update or patch file: ask pc-installd what it is. */
+    fun readPackage(open: PackageOpener) {
+        openPackage = open
+        runDaemon(FlowEvent::PackageFailed) { client ->
+            usePackage(open, FlowEvent::PackageFailed) { file ->
+                client.packageInfo(file).fold(FlowEvent::PackageRead, FlowEvent::PackageFailed)
+            }
+        }
+    }
+
+    /** Stages the update or applies the patch read by readPackage; locale is the app's language tag. */
+    fun applyPackage(locale: String) {
+        val open = openPackage ?: return
+        if (_busy.value || state.value.packageInfo?.blockedBy() != null) return
+        on(FlowEvent.PackageStarted)
+        runDaemon(FlowEvent::InstallFailed) { client ->
+            usePackage(open, FlowEvent::InstallFailed) { file ->
+                client.applyPackage(file, locale, ::onProgress).fold({ FlowEvent.Installed }, FlowEvent::InstallFailed)
+            }
+        }
+    }
+
+    fun askRemovePatch(patch: Patch) = on(FlowEvent.PatchRemoveAsked(patch))
+
+    fun cancelRemovePatch() = on(FlowEvent.PatchRemoveCancelled)
+
+    fun removePatch() {
+        val patch = state.value.patchToRemove ?: return
+        if (_busy.value) return
+        on(FlowEvent.PatchRemoveStarted)
+        runDaemon(FlowEvent::InstallFailed) { client ->
+            client.removePatch(patch.name).fold({ FlowEvent.Installed }, FlowEvent::InstallFailed)
+        }
+    }
 
     fun choosePartition(partition: Partition) = runDaemon(FlowEvent::InspectFailed) { client ->
         client.inspect(partition.name, state.value.folder)

@@ -83,7 +83,6 @@
     <string name="error_daemon_unreachable">O serviço de instalação não respondeu. Tente de novo.</string>
     <string name="error_unknown">Algo deu errado. Tente de novo.</string>
 
-    <string name="update_title">Atualizar o LineageOS</string>
     <string name="update_body">Conecte o pendrive com a nova versão do LineageOS e procure por ela.</string>
     <string name="update_current">Versão instalada: %1$s</string>
     <string name="update_search">Procurar atualização</string>
@@ -117,4 +116,49 @@
     <string name="key_needed">Para iniciar com a Inicialização Segura ativada, este computador precisa da chave do LineageOS. Prepare-a agora e confirme no próximo início.</string>
     <string name="key_prepare">Preparar a chave</string>
     <string name="key_queued">No próximo início, aperte uma tecla, escolha Enroll MOK, Continue e Yes, digite a senha %1$s e escolha Reboot.</string>
+
+    <string name="settings_summary">Instale atualizações e correções</string>
+    <string name="updates_welcome_body">Instale atualizações e correções do LineageOS.</string>
+    <string name="updates_loading">Carregando…</string>
+    <string name="updates_file_section">Instalar uma atualização</string>
+    <string name="updates_file_body">Baixe o arquivo de atualização da sua edição e escolha-o aqui.</string>
+    <string name="updates_file_choose">Escolher o arquivo de atualização</string>
+    <string name="patches_section">Correções</string>
+    <string name="patches_none">Nenhuma correção aplicada.</string>
+    <string name="patch_apply">Aplicar uma correção</string>
+    <string name="patch_version">Versão %1$s</string>
+    <string name="patch_remove_title">Remover a correção %1$s?</string>
+    <string name="patch_remove_body">Depois, reinicie o computador para concluir a remoção.</string>
+    <string name="usb_section">Atualizar por um pendrive</string>
+    <string name="package_update_title">Instalar esta atualização?</string>
+    <string name="package_patch_title">Aplicar esta correção?</string>
+    <string name="package_unknown_title">Este arquivo não pode ser usado</string>
+    <string name="package_name">Correção</string>
+    <string name="package_description">O que corrige</string>
+    <string name="package_version">Versão</string>
+    <string name="package_edition">Edição</string>
+    <string name="package_size">Tamanho</string>
+    <string name="package_update_note">Seus apps e dados serão mantidos. A atualização termina quando você reiniciar.</string>
+    <string name="package_patch_note">A correção passa a valer quando você reiniciar.</string>
+    <string name="package_install">Instalar atualização</string>
+    <string name="package_apply">Aplicar correção</string>
+    <string name="edition_gapps">Com serviços do Google</string>
+    <string name="edition_microg">Com microG</string>
+    <string name="edition_none">Sem serviços do Google</string>
+    <string name="applying_patch_title">Aplicando a correção…</string>
+    <string name="removing_patch_title">Removendo a correção…</string>
+    <string name="package_progress_body">Mantenha o computador ligado.</string>
+    <string name="update_ready_title">A atualização está pronta</string>
+    <string name="update_ready_body">Reinicie para concluir a atualização.</string>
+    <string name="patch_ready_title">A correção está pronta</string>
+    <string name="patch_ready_body">Reinicie para concluir a aplicação da correção.</string>
+    <string name="patch_removed_title">A correção foi removida</string>
+    <string name="patch_removed_body">Reinicie para concluir a remoção da correção.</string>
+    <string name="error_bad_package">Este arquivo está danificado ou não é uma atualização do LineageOS. Baixe-o de novo.</string>
+    <string name="error_bad_signature">Este arquivo não foi feito por este projeto ou foi alterado. Baixe-o de novo pela página do projeto.</string>
+    <string name="error_no_certificate">Falta neste computador um arquivo necessário para verificar atualizações. Atualize uma vez por um pendrive e tente de novo.</string>
+    <string name="error_wrong_flavor">Esta atualização é de outra edição (com ou sem serviços do Google). Baixe a da sua edição.</string>
+    <string name="error_wrong_base">Esta correção é para outra versão do sistema.</string>
+    <string name="error_no_room">Não há espaço livre suficiente. Libere espaço no computador e tente de novo.</string>
+    <string name="error_file_unreadable">Não foi possível abrir o arquivo. Escolha-o de novo.</string>
 </resources>

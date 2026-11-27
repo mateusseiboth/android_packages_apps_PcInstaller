@@ -9,17 +9,20 @@ import java.io.File
 
 /**
  * One launcher entry for the app: "Install LineageOS" in the live session, "System updates" on an
- * installed system, where the same app updates it. The choice is per user, made at each user's boot.
+ * installed system, where the same app updates it; there it is also in Settings > System. The choice is
+ * per user, made at each user's boot.
  */
 object LauncherEntry {
+    /** Alias name to whether it is on in the live session. */
+    private val ALIASES = mapOf("InstallEntry" to true, "UpdatesEntry" to false, "SettingsEntry" to false)
+
     fun choose(context: Context) {
         val isLive = isLiveSession()
-        setEnabled(context, "InstallEntry", isLive)
-        setEnabled(context, "UpdatesEntry", !isLive)
+        ALIASES.forEach { (alias, isForLive) -> setEnabled(context, alias, isForLive == isLive) }
     }
 
     /** pc-init keeps the user data in RAM for pc.live=1, the live ISO's boot entries. */
-    private fun isLiveSession(): Boolean =
+    fun isLiveSession(): Boolean =
         runCatching { File("/proc/cmdline").readText() }
             .getOrDefault("")
             .split(' ', '\n')

@@ -1,5 +1,6 @@
 package org.lineageos.pcinstaller.ui
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,9 +10,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Downloading
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.FileOpen
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
 import androidx.compose.material.icons.rounded.InstallDesktop
@@ -51,7 +54,10 @@ import org.lineageos.pcinstaller.core.FlowState
 import org.lineageos.pcinstaller.core.InstallError
 import org.lineageos.pcinstaller.core.InstallRules
 import org.lineageos.pcinstaller.core.KeyStep
+import org.lineageos.pcinstaller.core.PackageInfo
+import org.lineageos.pcinstaller.core.PackageType
 import org.lineageos.pcinstaller.core.Partition
+import org.lineageos.pcinstaller.core.Patch
 import org.lineageos.pcinstaller.core.SystemForm
 import org.lineageos.pcinstaller.core.Task
 
@@ -71,6 +77,12 @@ class Actions(
     val cancelUninstall: () -> Unit,
     val uninstall: () -> Unit,
     val prepareKey: () -> Unit,
+    /** Opens the file picker for an update or patch file. */
+    val pickPackage: () -> Unit,
+    val applyPackage: () -> Unit,
+    val askRemovePatch: (Patch) -> Unit,
+    val cancelRemovePatch: () -> Unit,
+    val removePatch: () -> Unit,
 )
 
 @Composable
@@ -102,14 +114,23 @@ private fun KeyNote(state: FlowState, busy: Boolean, actions: Actions) {
 
 // ---- welcome and loading -------------------------------------------------------------------
 
+private class WelcomeTexts(val title: Int, val body: Int, val loading: Int)
+
+/** The live session installs; an installed system opens on its updates. */
+private val WELCOME_TEXTS = mapOf(
+    true to WelcomeTexts(R.string.welcome_title, R.string.welcome_body, R.string.loading),
+    false to WelcomeTexts(R.string.updates_name, R.string.updates_welcome_body, R.string.updates_loading),
+)
+
 @Composable
-fun WelcomeScreen(actions: Actions, loading: Boolean) {
+fun WelcomeScreen(actions: Actions, isLive: Boolean, loading: Boolean) {
+    val texts = WELCOME_TEXTS.getValue(isLive)
     Page(
         icon = Icons.Rounded.InstallDesktop,
-        title = stringResource(R.string.welcome_title),
-        body = stringResource(R.string.welcome_body),
+        title = stringResource(texts.title),
+        body = stringResource(texts.body),
         actions = {
-            if (loading) Text(stringResource(R.string.loading), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (loading) Text(stringResource(texts.loading), color = MaterialTheme.colorScheme.onSurfaceVariant)
             MainButton(stringResource(R.string.welcome_start), busy = loading, onClick = actions.start)
         },
     )
@@ -348,12 +369,25 @@ private val TASK_TITLES = mapOf(
     Task.INSTALL to R.string.installing_title,
     Task.UPDATE to R.string.updating_title,
     Task.REMOVE to R.string.removing_title,
+    Task.APPLY_UPDATE to R.string.updating_title,
+    Task.APPLY_PATCH to R.string.applying_patch_title,
+    Task.REMOVE_PATCH to R.string.removing_patch_title,
+)
+
+/** Only the installs and updates from a USB drive need the drive to stay in. */
+private val TASK_BODIES = mapOf(
+    Task.INSTALL to R.string.installing_body,
+    Task.UPDATE to R.string.installing_body,
+    Task.REMOVE to R.string.installing_body,
+    Task.APPLY_UPDATE to R.string.package_progress_body,
+    Task.APPLY_PATCH to R.string.package_progress_body,
+    Task.REMOVE_PATCH to R.string.package_progress_body,
 )
 
 @Composable
 fun InstallingScreen(state: FlowState) {
     Page(icon = Icons.Rounded.Downloading, title = stringResource(TASK_TITLES.getValue(state.task)),
-        body = stringResource(R.string.installing_body)) {
+        body = stringResource(TASK_BODIES.getValue(state.task))) {
         Column(Modifier.fillMaxWidth().padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(Texts.step(state.step)), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
@@ -373,7 +407,13 @@ private val FINISHED_TEXTS = mapOf(
     Task.INSTALL to (R.string.done_title to R.string.done_body),
     Task.UPDATE to (R.string.updated_title to R.string.updated_body),
     Task.REMOVE to (R.string.removed_title to R.string.removed_body),
+    Task.APPLY_UPDATE to (R.string.update_ready_title to R.string.update_ready_body),
+    Task.APPLY_PATCH to (R.string.patch_ready_title to R.string.patch_ready_body),
+    Task.REMOVE_PATCH to (R.string.patch_removed_title to R.string.patch_removed_body),
 )
+
+/** The tasks that write GRUB from a USB drive, which may need that drive's key. */
+private val KEY_TASKS = setOf(Task.INSTALL, Task.UPDATE)
 
 @Composable
 fun DoneScreen(state: FlowState, busy: Boolean, actions: Actions) {
@@ -384,24 +424,152 @@ fun DoneScreen(state: FlowState, busy: Boolean, actions: Actions) {
         body = stringResource(body),
         actions = { Button(onClick = actions.reboot) { Text(stringResource(R.string.done_reboot)) } },
     ) {
-        if (state.task != Task.REMOVE) KeyNote(state, busy, actions)
+        if (state.task in KEY_TASKS) KeyNote(state, busy, actions)
     }
 }
 
-// ---- an installed system: update from a USB drive -------------------------------------------
+// ---- an installed system: update files, patches, update from a USB drive ----------------------
 
 @Composable
 fun UpdateHomeScreen(state: FlowState, busy: Boolean, actions: Actions) {
     val running = state.source!!.installed!!
     Page(
         icon = Icons.Rounded.SystemUpdate,
-        title = stringResource(R.string.update_title),
-        body = stringResource(R.string.update_body),
-        actions = { MainButton(stringResource(R.string.update_search), busy, onClick = actions.findUpdate) },
+        title = stringResource(R.string.updates_name),
+        body = stringResource(R.string.update_current, running.version),
+        actions = { if (busy) BusyIndicator() },
     ) {
         ErrorNote(state.error)
-        Text(stringResource(R.string.update_current, running.version), style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SectionTitle(stringResource(R.string.updates_file_section))
+        Hint(stringResource(R.string.updates_file_body))
+        Button(onClick = actions.pickPackage, enabled = !busy) {
+            Icon(Icons.Rounded.FileOpen, null)
+            Text(stringResource(R.string.updates_file_choose), Modifier.padding(start = 8.dp))
+        }
+
+        SectionTitle(stringResource(R.string.patches_section))
+        state.patches.forEach { PatchCard(it, busy, actions) }
+        if (state.patches.isEmpty()) Hint(stringResource(R.string.patches_none))
+        OutlinedButton(onClick = actions.pickPackage, enabled = !busy) { Text(stringResource(R.string.patch_apply)) }
+
+        SectionTitle(stringResource(R.string.usb_section))
+        Hint(stringResource(R.string.update_body))
+        OutlinedButton(onClick = actions.findUpdate, enabled = !busy) {
+            Icon(Icons.Rounded.Usb, null)
+            Text(stringResource(R.string.update_search), Modifier.padding(start = 8.dp))
+        }
+        state.patchToRemove?.let { RemovePatchDialog(it, actions) }
+        Gap()
+    }
+}
+
+@Composable
+private fun Hint(text: String) {
+    Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun PatchCard(patch: Patch, busy: Boolean, actions: Actions) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.Build, null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
+            Column(Modifier.weight(1f).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(patch.name, style = MaterialTheme.typography.titleMedium)
+                if (patch.description.isNotEmpty()) Hint(patch.description)
+                Text(stringResource(R.string.patch_version, patch.version), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            TextButton(
+                onClick = { actions.askRemovePatch(patch) },
+                enabled = !busy,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) { Text(stringResource(R.string.uninstall_confirm)) }
+        }
+    }
+}
+
+@Composable
+private fun RemovePatchDialog(patch: Patch, actions: Actions) {
+    AlertDialog(
+        onDismissRequest = actions.cancelRemovePatch,
+        icon = { Icon(Icons.Rounded.DeleteOutline, null) },
+        title = { Text(stringResource(R.string.patch_remove_title, patch.name)) },
+        text = { Text(stringResource(R.string.patch_remove_body)) },
+        confirmButton = {
+            TextButton(
+                onClick = actions.removePatch,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) { Text(stringResource(R.string.uninstall_confirm)) }
+        },
+        dismissButton = { TextButton(onClick = actions.cancelRemovePatch) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+private val PACKAGE_TITLES = mapOf(
+    PackageType.UPDATE to R.string.package_update_title,
+    PackageType.PATCH to R.string.package_patch_title,
+    PackageType.UNKNOWN to R.string.package_unknown_title,
+)
+private val PACKAGE_BUTTONS = mapOf(PackageType.UPDATE to R.string.package_install, PackageType.PATCH to R.string.package_apply)
+private val PACKAGE_NOTES = mapOf(PackageType.UPDATE to R.string.package_update_note, PackageType.PATCH to R.string.package_patch_note)
+
+/** The card's label and value rows for each kind of file; empty values are left out. */
+private val PACKAGE_ROWS: Map<PackageType, (Context, PackageInfo, String) -> List<Pair<Int, String>>> = mapOf(
+    PackageType.UPDATE to { c, info, installed ->
+        listOf(
+            R.string.update_new_label to info.version,
+            R.string.update_installed_label to installed,
+            R.string.package_edition to Texts.edition(c, info.flavor),
+            R.string.package_size to Texts.bytes(c, info.size),
+        )
+    },
+    PackageType.PATCH to { c, info, _ ->
+        listOf(
+            R.string.package_name to info.name,
+            R.string.package_description to info.description,
+            R.string.package_version to info.version,
+            R.string.package_size to Texts.bytes(c, info.size),
+        )
+    },
+    PackageType.UNKNOWN to { _, _, _ -> emptyList() },
+)
+
+/** What the chosen update or patch file holds, and the button to apply it when it fits this system. */
+@Composable
+fun PackageScreen(state: FlowState, busy: Boolean, actions: Actions) {
+    val info = state.packageInfo!!
+    val blocked = info.blockedBy()
+    val rows = PACKAGE_ROWS.getValue(info.type)(LocalContext.current, info, state.source!!.installed!!.version)
+        .filter { it.second.isNotEmpty() }
+    Page(
+        icon = Icons.Rounded.SystemUpdate,
+        title = stringResource(PACKAGE_TITLES.getValue(info.type)),
+        body = null,
+        actions = {
+            BackButton(actions, busy)
+            PACKAGE_BUTTONS[info.type]?.takeIf { blocked == null }
+                ?.let { MainButton(stringResource(it), busy, onClick = actions.applyPackage) }
+        },
+    ) {
+        if (rows.isNotEmpty()) PackageCard(rows)
+        ErrorNote(blocked)
+        if (blocked == null) PACKAGE_NOTES[info.type]?.let { Note(stringResource(it)) }
+    }
+}
+
+@Composable
+private fun PackageCard(rows: List<Pair<Int, String>>) {
+    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+            rows.forEachIndexed { index, (label, value) ->
+                if (index > 0) HorizontalDivider()
+                SummaryRow(stringResource(label), value)
+            }
+        }
     }
 }
 
