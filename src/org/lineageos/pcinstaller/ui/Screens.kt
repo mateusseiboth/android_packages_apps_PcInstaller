@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.Downloading
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.FileOpen
@@ -49,11 +50,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.lineageos.pcinstaller.R
+import org.lineageos.pcinstaller.core.CatalogEntry
 import org.lineageos.pcinstaller.core.DataForm
 import org.lineageos.pcinstaller.core.FlowState
 import org.lineageos.pcinstaller.core.InstallError
 import org.lineageos.pcinstaller.core.InstallRules
 import org.lineageos.pcinstaller.core.KeyStep
+import org.lineageos.pcinstaller.core.Offer
 import org.lineageos.pcinstaller.core.PackageInfo
 import org.lineageos.pcinstaller.core.PackageType
 import org.lineageos.pcinstaller.core.Partition
@@ -83,6 +86,8 @@ class Actions(
     val askRemovePatch: (Patch) -> Unit,
     val cancelRemovePatch: () -> Unit,
     val removePatch: () -> Unit,
+    val checkForUpdates: () -> Unit,
+    val download: (CatalogEntry) -> Unit,
 )
 
 @Composable
@@ -372,6 +377,7 @@ private val TASK_TITLES = mapOf(
     Task.APPLY_UPDATE to R.string.updating_title,
     Task.APPLY_PATCH to R.string.applying_patch_title,
     Task.REMOVE_PATCH to R.string.removing_patch_title,
+    Task.DOWNLOAD to R.string.downloading_title,
 )
 
 /** Only the installs and updates from a USB drive need the drive to stay in. */
@@ -382,6 +388,7 @@ private val TASK_BODIES = mapOf(
     Task.APPLY_UPDATE to R.string.package_progress_body,
     Task.APPLY_PATCH to R.string.package_progress_body,
     Task.REMOVE_PATCH to R.string.package_progress_body,
+    Task.DOWNLOAD to R.string.downloading_body,
 )
 
 @Composable
@@ -430,19 +437,31 @@ fun DoneScreen(state: FlowState, busy: Boolean, actions: Actions) {
 
 // ---- an installed system: update files, patches, update from a USB drive ----------------------
 
+/** "27 de nov. de 2026, edição com serviços do Google": the running system in plain words. */
+@Composable
+private fun installedSystem(state: FlowState): String {
+    val running = state.running ?: return state.source!!.installed!!.version
+    return Texts.installedSystem(LocalContext.current, running.dateUtc, running.flavor)
+}
+
 @Composable
 fun UpdateHomeScreen(state: FlowState, busy: Boolean, actions: Actions) {
-    val running = state.source!!.installed!!
     Page(
         icon = Icons.Rounded.SystemUpdate,
         title = stringResource(R.string.updates_name),
-        body = stringResource(R.string.update_current, running.version),
+        body = stringResource(R.string.installed_system, installedSystem(state)),
         actions = { if (busy) BusyIndicator() },
     ) {
         ErrorNote(state.error)
+        Button(onClick = actions.checkForUpdates, enabled = !busy) {
+            Icon(Icons.Rounded.CloudDownload, null)
+            Text(stringResource(R.string.check_for_updates), Modifier.padding(start = 8.dp))
+        }
+        state.offer?.let { OfferList(it, busy, actions) }
+
         SectionTitle(stringResource(R.string.updates_file_section))
         Hint(stringResource(R.string.updates_file_body))
-        Button(onClick = actions.pickPackage, enabled = !busy) {
+        OutlinedButton(onClick = actions.pickPackage, enabled = !busy) {
             Icon(Icons.Rounded.FileOpen, null)
             Text(stringResource(R.string.updates_file_choose), Modifier.padding(start = 8.dp))
         }
@@ -460,6 +479,40 @@ fun UpdateHomeScreen(state: FlowState, busy: Boolean, actions: Actions) {
         }
         state.patchToRemove?.let { RemovePatchDialog(it, actions) }
         Gap()
+    }
+}
+
+/** What "Check for updates" found: a newer system and patches for this one, or that it is up to date. */
+@Composable
+private fun OfferList(offer: Offer, busy: Boolean, actions: Actions) {
+    val context = LocalContext.current
+    if (offer.isEmpty) Note(stringResource(R.string.up_to_date))
+    offer.update?.let {
+        OfferCard(Icons.Rounded.SystemUpdate, stringResource(R.string.offer_update_title), null,
+            stringResource(R.string.offer_details, it.version, Texts.bytes(context, it.size)), busy) { actions.download(it) }
+    }
+    offer.patches.forEach {
+        OfferCard(Icons.Rounded.Build, it.name, it.description.ifEmpty { null },
+            stringResource(R.string.offer_details, it.version, Texts.bytes(context, it.size)), busy) { actions.download(it) }
+    }
+}
+
+@Composable
+private fun OfferCard(icon: ImageVector, title: String, body: String?, details: String, busy: Boolean, onDownload: () -> Unit) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+            Column(Modifier.weight(1f).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                body?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                Text(details, style = MaterialTheme.typography.bodySmall)
+            }
+            Button(onClick = onDownload, enabled = !busy) { Text(stringResource(R.string.offer_download)) }
+        }
     }
 }
 
@@ -522,7 +575,7 @@ private val PACKAGE_ROWS: Map<PackageType, (Context, PackageInfo, String) -> Lis
     PackageType.UPDATE to { c, info, installed ->
         listOf(
             R.string.update_new_label to info.version,
-            R.string.update_installed_label to installed,
+            R.string.installed_label to installed,
             R.string.package_edition to Texts.edition(c, info.flavor),
             R.string.package_size to Texts.bytes(c, info.size),
         )
@@ -543,7 +596,7 @@ private val PACKAGE_ROWS: Map<PackageType, (Context, PackageInfo, String) -> Lis
 fun PackageScreen(state: FlowState, busy: Boolean, actions: Actions) {
     val info = state.packageInfo!!
     val blocked = info.blockedBy()
-    val rows = PACKAGE_ROWS.getValue(info.type)(LocalContext.current, info, state.source!!.installed!!.version)
+    val rows = PACKAGE_ROWS.getValue(info.type)(LocalContext.current, info, installedSystem(state))
         .filter { it.second.isNotEmpty() }
     Page(
         icon = Icons.Rounded.SystemUpdate,

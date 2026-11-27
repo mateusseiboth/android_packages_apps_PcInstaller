@@ -84,7 +84,6 @@
     <string name="error_unknown">Algo deu errado. Tente de novo.</string>
 
     <string name="update_body">Conecte o pendrive com a nova versão do LineageOS e procure por ela.</string>
-    <string name="update_current">Versão instalada: %1$s</string>
     <string name="update_search">Procurar atualização</string>
     <string name="update_found_title">Atualização encontrada</string>
     <string name="update_installed_label">Versão instalada</string>
@@ -117,11 +116,10 @@
     <string name="key_prepare">Preparar a chave</string>
     <string name="key_queued">No próximo início, aperte uma tecla, escolha Enroll MOK, Continue e Yes, digite a senha %1$s e escolha Reboot.</string>
 
-    <string name="settings_summary">Instale atualizações e correções</string>
     <string name="updates_welcome_body">Instale atualizações e correções do LineageOS.</string>
     <string name="updates_loading">Carregando…</string>
-    <string name="updates_file_section">Instalar uma atualização</string>
-    <string name="updates_file_body">Baixe o arquivo de atualização da sua edição e escolha-o aqui.</string>
+    <string name="updates_file_section">Instalar de um arquivo</string>
+    <string name="updates_file_body">Já baixou uma atualização? Escolha o arquivo aqui.</string>
     <string name="updates_file_choose">Escolher o arquivo de atualização</string>
     <string name="patches_section">Correções</string>
     <string name="patches_none">Nenhuma correção aplicada.</string>
@@ -161,4 +159,21 @@
     <string name="error_wrong_base">Esta correção é para outra versão do sistema.</string>
     <string name="error_no_room">Não há espaço livre suficiente. Libere espaço no computador e tente de novo.</string>
     <string name="error_file_unreadable">Não foi possível abrir o arquivo. Escolha-o de novo.</string>
+    <string name="check_for_updates">Procurar atualizações</string>
+    <string name="up_to_date">Seu sistema está atualizado.</string>
+    <string name="offer_update_title">Nova versão disponível</string>
+    <string name="offer_details">Versão %1$s, %2$s</string>
+    <string name="offer_download">Baixar</string>
+    <string name="downloading_title">Baixando…</string>
+    <string name="downloading_body">Mantenha o computador ligado e conectado à internet.</string>
+    <string name="step_download">Baixando o arquivo</string>
+    <string name="installed_system">Sistema instalado: %1$s.</string>
+    <string name="installed_label">Sistema instalado</string>
+    <string name="installed_edition_gapps">edição com serviços do Google</string>
+    <string name="installed_edition_microg">edição com microG</string>
+    <string name="installed_edition_none">edição sem serviços do Google</string>
+    <string name="error_network">Não foi possível procurar atualizações. Verifique a conexão com a internet e tente de novo.</string>
+    <string name="error_catalog_unreadable">Não foi possível ler a lista de atualizações. Tente de novo mais tarde.</string>
+    <string name="error_download_failed">O download não terminou. Verifique a conexão com a internet e tente de novo.</string>
+    <string name="error_download_damaged">O arquivo baixado está danificado. Tente de novo.</string>
 </resources>

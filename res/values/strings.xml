@@ -85,7 +85,6 @@
     <string name="error_unknown">Something went wrong. Try again.</string>
 
     <string name="update_body">Plug in the USB drive with the new version of LineageOS, then search for it.</string>
-    <string name="update_current">Installed version: %1$s</string>
     <string name="update_search">Search for an update</string>
     <string name="update_found_title">Update found</string>
     <string name="update_installed_label">Installed version</string>
@@ -118,11 +117,10 @@
     <string name="key_prepare">Prepare the key</string>
     <string name="key_queued">On the next start, press a key, choose Enroll MOK, Continue and Yes, type the password %1$s and choose Reboot.</string>
 
-    <string name="settings_summary">Install updates and patches</string>
     <string name="updates_welcome_body">Install updates and patches for LineageOS.</string>
     <string name="updates_loading">Loading…</string>
-    <string name="updates_file_section">Install an update</string>
-    <string name="updates_file_body">Download the update file for your edition, then choose it here.</string>
+    <string name="updates_file_section">Install from a file</string>
+    <string name="updates_file_body">Already downloaded an update? Choose the file here.</string>
     <string name="updates_file_choose">Choose the update file</string>
     <string name="patches_section">Patches</string>
     <string name="patches_none">No patches applied.</string>
@@ -162,4 +160,21 @@
     <string name="error_wrong_base">This patch is for another version of the system.</string>
     <string name="error_no_room">There is not enough free space. Free some space on the computer and try again.</string>
     <string name="error_file_unreadable">The file could not be opened. Choose it again.</string>
+    <string name="check_for_updates">Check for updates</string>
+    <string name="up_to_date">Your system is up to date.</string>
+    <string name="offer_update_title">New version available</string>
+    <string name="offer_details">Version %1$s, %2$s</string>
+    <string name="offer_download">Download</string>
+    <string name="downloading_title">Downloading…</string>
+    <string name="downloading_body">Keep the computer on and connected to the internet.</string>
+    <string name="step_download">Downloading the file</string>
+    <string name="installed_system">Installed system: %1$s.</string>
+    <string name="installed_label">Installed system</string>
+    <string name="installed_edition_gapps">edition with Google services</string>
+    <string name="installed_edition_microg">edition with microG</string>
+    <string name="installed_edition_none">edition without Google services</string>
+    <string name="error_network">Could not check for updates. Check the internet connection and try again.</string>
+    <string name="error_catalog_unreadable">The list of updates could not be read. Try again later.</string>
+    <string name="error_download_failed">The download did not finish. Check the internet connection and try again.</string>
+    <string name="error_download_damaged">The downloaded file is damaged. Try again.</string>
 </resources>

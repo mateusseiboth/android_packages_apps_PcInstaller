@@ -17,10 +17,19 @@ the device tree only adds both to `PRODUCT_PACKAGES`.
 
 - **Live USB session:** install into a folder on a partition (UEFI or BIOS), update an install that is
   already in that folder (data kept), or remove it.
-- **Installed system:** the app is "System updates" (launcher, and Settings > System) and opens on its
-  updates screen (package format and daemon side: `device/pc/pc_x86_64/docs/UPDATES.md`):
-  - **Install an update:** "Choose the update file" opens the system file picker; pick the
-    `lineage-pc-update-*.tar` downloaded from SourceForge. The app shows its version, the installed version,
+- **Installed system:** the app is "System updates" (launcher, and Settings > System > "System update") and
+  opens on its updates screen, under a line naming the installed system by its build date and edition
+  ("Installed system: Nov 27, 2026, edition with Google services."). Package format and daemon side:
+  `device/pc/pc_x86_64/docs/UPDATES.md`.
+  - **Check for updates:** fetches the online list,
+    `https://raw.githubusercontent.com/mateusseiboth/lineage-pc-updates/main/updates.json` (format in that
+    repository's README). It offers the update of the installed edition when its `build` is newer than the
+    running `ro.system.build.date.utc` and it has a `url`, and the patches whose `build` is the running one and
+    that are not applied yet (same name and version). "Download" saves the file in the app's files
+    (`files/downloads/`, one file at most), checks its size and sha256, and goes on as a picked file. Otherwise:
+    "Your system is up to date.", or a plain message when the list or the download cannot be reached.
+  - **Install from a file:** "Choose the update file" opens the system file picker; pick the
+    `lineage-pc-update-*.tar` downloaded from SourceForge. The app shows its version, the installed system,
     the edition (with Google services, microG, or without) and its size, or a plain message when it is for
     another edition or the file is damaged or not signed by this build's key. "Install update" shows the
     progress, then "Restart to finish the update".
@@ -30,11 +39,16 @@ the device tree only adds both to `PRODUCT_PACKAGES`.
   - **Update from a USB drive:** plug in a newer live USB drive, the app finds it, shows the installed and the
     new version, and updates the running install in place (data kept).
 
-  Each package command reopens the chosen file and sends its descriptor with the command line
+  Each package command reopens the file and sends its descriptor with the command line
   (`LocalSocket.setFileDescriptorsForSend`, cleared right after the write); `APPLY_PACKAGE` carries the app's
-  language tag (`locale=pt-BR`) for the boot screen that finishes an update. The Settings entry is the
-  `SettingsEntry` alias (`com.android.settings.action.IA_SETTINGS`, category `ia.system`); `LauncherEntry`
-  enables it with "System updates" and disables both in the live session.
+  language tag (`locale=pt-BR`) for the boot screen that finishes an update. The edition is read like
+  pc-installd reads it (`Phonesky` or `GmsCore` under `/system`), the build from `ro.system.build.date.utc`.
+
+  **Replaces LineageOS's Updater.** `Android.bp` declares `overrides: ["Updater"]`, so the image leaves
+  `org.lineageos.updater` out. The `UpdatesEntry` alias (launcher entry of an installed system) also answers
+  `android.settings.SYSTEM_UPDATE_SETTINGS`, which Settings resolves for its own "System update" entry in
+  Settings > System; there is no separate injected Settings tile, so the entry appears once. `LauncherEntry`
+  disables the alias in the live session, where Settings then hides that entry.
 
 ## What an install produces
 
@@ -197,8 +211,9 @@ decompressed, kernel, initrd). `APPLY_PACKAGE` checks the room first (`no_room`)
 `no_space`, `data_too_small`, `data_exists`, `no_data_to_keep`, `mount_failed`, `copy_failed`, `data_failed`,
 `esp_failed`, `efi_failed`, `boot_failed`, `menu_failed`, `io_error`, `not_installed`, `running_system`,
 `no_update_source`, and for the package commands `bad_package`, `bad_signature`, `no_certificate`,
-`wrong_flavor`, `wrong_base`, `no_room`, `io`. The app adds `daemon_unreachable` and `file_unreadable` (the
-picked file cannot be opened). Each has a one or two sentence text in
+`wrong_flavor`, `wrong_base`, `no_room`, `io`. The app adds `daemon_unreachable`, `file_unreadable` (the
+picked file cannot be opened), `network` and `catalog_unreadable` (the online list), `download_failed` and
+`download_damaged` (size or sha256 not the list's). Each has a one or two sentence text in
 `res/values*/strings.xml`.
 
 ## Tests

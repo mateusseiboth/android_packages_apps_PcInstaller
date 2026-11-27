@@ -9,12 +9,12 @@ import java.io.File
 
 /**
  * One launcher entry for the app: "Install LineageOS" in the live session, "System updates" on an
- * installed system, where the same app updates it; there it is also in Settings > System. The choice is
- * per user, made at each user's boot.
+ * installed system, where the same app updates it; that entry also answers Settings' "System update". The
+ * choice is per user, made at each user's boot.
  */
 object LauncherEntry {
     /** Alias name to whether it is on in the live session. */
-    private val ALIASES = mapOf("InstallEntry" to true, "UpdatesEntry" to false, "SettingsEntry" to false)
+    private val ALIASES = mapOf("InstallEntry" to true, "UpdatesEntry" to false)
 
     fun choose(context: Context) {
         val isLive = isLiveSession()

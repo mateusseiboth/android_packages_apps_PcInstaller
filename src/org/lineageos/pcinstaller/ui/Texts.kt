@@ -2,6 +2,9 @@ package org.lineageos.pcinstaller.ui
 
 import android.content.Context
 import android.text.format.Formatter
+import java.text.DateFormat
+import java.util.Date
+import java.util.Locale
 import org.lineageos.pcinstaller.R
 import org.lineageos.pcinstaller.core.DataForm
 import org.lineageos.pcinstaller.core.InstallError
@@ -45,6 +48,10 @@ object Texts {
         InstallError.NO_ROOM to R.string.error_no_room,
         InstallError.IO to R.string.error_io_error,
         InstallError.FILE_UNREADABLE to R.string.error_file_unreadable,
+        InstallError.NETWORK to R.string.error_network,
+        InstallError.CATALOG_UNREADABLE to R.string.error_catalog_unreadable,
+        InstallError.DOWNLOAD_FAILED to R.string.error_download_failed,
+        InstallError.DOWNLOAD_DAMAGED to R.string.error_download_damaged,
     )
 
     /** An update's flavor, as the edition the person downloaded. */
@@ -52,6 +59,13 @@ object Texts {
         "gapps" to R.string.edition_gapps,
         "microg" to R.string.edition_microg,
         "none" to R.string.edition_none,
+    )
+
+    /** The running system's edition inside a sentence ("Installed system: <date>, <edition>."). */
+    private val INSTALLED_EDITIONS = mapOf(
+        "gapps" to R.string.installed_edition_gapps,
+        "microg" to R.string.installed_edition_microg,
+        "none" to R.string.installed_edition_none,
     )
 
     private val STEPS = mapOf(
@@ -62,6 +76,7 @@ object Texts {
         InstallStep.BOOT to R.string.step_boot,
         InstallStep.REMOVE to R.string.step_remove,
         InstallStep.FINISH to R.string.step_finish,
+        InstallStep.DOWNLOAD to R.string.step_download,
     )
 
     private val SYSTEM_FORMS = mapOf(SystemForm.IMAGE to R.string.system_image, SystemForm.FOLDER to R.string.system_folder)
@@ -89,6 +104,18 @@ object Texts {
     fun fileSystem(context: Context, fs: String): String = FILE_SYSTEMS[fs] ?: context.getString(R.string.fs_unknown)
 
     fun edition(context: Context, flavor: String): String = EDITIONS[flavor]?.let(context::getString) ?: flavor
+
+    /** A build time (seconds) as a date in the app's language, e.g. "27 de nov. de 2026". */
+    fun date(utcSeconds: Long, locale: Locale): String =
+        DateFormat.getDateInstance(DateFormat.MEDIUM, locale).format(Date(utcSeconds * 1000))
+
+    /** "<date>, <edition>" for the running system; the edition alone names it when the date is unknown. */
+    fun installedSystem(context: Context, utcSeconds: Long, flavor: String): String {
+        val locale = context.resources.configuration.locales[0]
+        val edition = INSTALLED_EDITIONS[flavor]?.let(context::getString)
+        val date = date(utcSeconds, locale).takeIf { utcSeconds > 0 }
+        return listOfNotNull(date, edition).joinToString(", ")
+    }
 
     fun bytes(context: Context, bytes: Long): String = Formatter.formatFileSize(context, bytes)
 }

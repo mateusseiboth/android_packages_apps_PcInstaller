@@ -32,6 +32,9 @@ android_app {
     certificate: "platform",
     privileged: true,
     system_ext_specific: true,
+    // "System updates" replaces LineageOS's Updater (OTA zips from download.lineageos.org, which has no
+    // builds for this device); Settings > System > "System update" opens ours.
+    overrides: ["Updater"],
     static_libs: [
         "PcInstallerCore",
         "androidx.activity_activity",

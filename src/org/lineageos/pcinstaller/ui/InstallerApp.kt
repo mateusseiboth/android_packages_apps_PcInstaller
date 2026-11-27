@@ -77,6 +77,8 @@ fun InstallerApp(viewModel: InstallerViewModel, isLive: Boolean, onReboot: () ->
         askRemovePatch = viewModel::askRemovePatch,
         cancelRemovePatch = viewModel::cancelRemovePatch,
         removePatch = viewModel::removePatch,
+        checkForUpdates = viewModel::checkForUpdates,
+        download = viewModel::download,
     )
     BackHandler(enabled = state.screen in BACKABLE) { viewModel.back() }
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {

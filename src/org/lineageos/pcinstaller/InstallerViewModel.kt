@@ -1,7 +1,8 @@
 package org.lineageos.pcinstaller
 
+import android.app.Application
 import android.os.ParcelFileDescriptor
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,7 +10,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 import java.io.FileDescriptor
+import org.lineageos.pcinstaller.core.CatalogEntry
 import org.lineageos.pcinstaller.core.DataForm
 import org.lineageos.pcinstaller.core.FlowEvent
 import org.lineageos.pcinstaller.core.FlowState
@@ -21,14 +24,18 @@ import org.lineageos.pcinstaller.core.Partition
 import org.lineageos.pcinstaller.core.Patch
 import org.lineageos.pcinstaller.core.SourceInfo
 import org.lineageos.pcinstaller.core.SystemForm
+import org.lineageos.pcinstaller.core.Updates
 import org.lineageos.pcinstaller.core.fold
 
 /** Opens the update or patch file the person chose; each command gets a fresh descriptor at offset 0. */
 typealias PackageOpener = () -> ParcelFileDescriptor?
 
 /** Runs the daemon calls off the main thread and feeds their results to InstallerFlow. */
-class InstallerViewModel : ViewModel() {
+class InstallerViewModel(application: Application) : AndroidViewModel(application) {
     private var openPackage: PackageOpener? = null
+
+    /** Holds the one file downloaded from the online list, until it is applied or another download starts. */
+    private val downloadDir = File(application.filesDir, "downloads")
 
     private val _state = MutableStateFlow(FlowState())
     val state: StateFlow<FlowState> = _state.asStateFlow()
@@ -38,12 +45,16 @@ class InstallerViewModel : ViewModel() {
 
     private fun on(event: FlowEvent) = _state.update { InstallerFlow.reduce(it, event) }
 
-    private fun runDaemon(onFailed: (InstallError) -> FlowEvent, task: (InstallerClient) -> FlowEvent) {
+    private fun runTask(task: () -> FlowEvent) {
         if (!_busy.compareAndSet(expect = false, update = true)) return
         viewModelScope.launch(Dispatchers.IO) {
-            on(DaemonConnection.withClient(task) ?: onFailed(InstallError.DAEMON_UNREACHABLE))
+            on(task())
             _busy.value = false
         }
+    }
+
+    private fun runDaemon(onFailed: (InstallError) -> FlowEvent, task: (InstallerClient) -> FlowEvent) = runTask {
+        DaemonConnection.withClient(task) ?: onFailed(InstallError.DAEMON_UNREACHABLE)
     }
 
     fun start() {
@@ -52,7 +63,7 @@ class InstallerViewModel : ViewModel() {
     }
 
     private fun load(client: InstallerClient): FlowEvent = client.info().fold(
-        { source -> client.partitions().fold({ FlowEvent.Loaded(source, it, findPatches(client, source)) }, FlowEvent::LoadFailed) },
+        { source -> client.partitions().fold({ FlowEvent.Loaded(source, it, findPatches(client, source), RunningSystem.read()) }, FlowEvent::LoadFailed) },
         FlowEvent::LoadFailed,
     )
 
@@ -76,11 +87,40 @@ class InstallerViewModel : ViewModel() {
     /** The person picked an update or patch file: ask pc-installd what it is. */
     fun readPackage(open: PackageOpener) {
         openPackage = open
-        runDaemon(FlowEvent::PackageFailed) { client ->
-            usePackage(open, FlowEvent::PackageFailed) { file ->
-                client.packageInfo(file).fold(FlowEvent::PackageRead, FlowEvent::PackageFailed)
-            }
+        runDaemon(FlowEvent::PackageFailed) { client -> readPackageWith(client, open) }
+    }
+
+    private fun readPackageWith(client: InstallerClient, open: PackageOpener): FlowEvent =
+        usePackage(open, FlowEvent::PackageFailed) { file ->
+            client.packageInfo(file).fold(FlowEvent::PackageRead, FlowEvent::PackageFailed)
         }
+
+    /** Fetches the online update list and keeps what it has for this system. */
+    fun checkForUpdates() {
+        val running = state.value.running ?: return
+        runTask {
+            OnlineUpdates.fetchCatalog().fold(
+                { FlowEvent.OfferFound(Updates.findOffer(it, running, state.value.patches)) },
+                FlowEvent::OfferFailed,
+            )
+        }
+    }
+
+    /** Downloads an update or patch from the online list, then reads it like a picked file. */
+    fun download(entry: CatalogEntry) {
+        if (_busy.value) return
+        on(FlowEvent.DownloadStarted)
+        runTask {
+            OnlineUpdates.download(entry, downloadDir) { on(FlowEvent.Progressed(InstallStep.DOWNLOAD, it)) }
+                .fold(::readDownloaded, FlowEvent::DownloadFailed)
+        }
+    }
+
+    private fun readDownloaded(file: File): FlowEvent {
+        val open: PackageOpener = { ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY) }
+        openPackage = open
+        return DaemonConnection.withClient { client -> readPackageWith(client, open) }
+            ?: FlowEvent.PackageFailed(InstallError.DAEMON_UNREACHABLE)
     }
 
     /** Stages the update or applies the patch read by readPackage; locale is the app's language tag. */
@@ -90,9 +130,15 @@ class InstallerViewModel : ViewModel() {
         on(FlowEvent.PackageStarted)
         runDaemon(FlowEvent::InstallFailed) { client ->
             usePackage(open, FlowEvent::InstallFailed) { file ->
-                client.applyPackage(file, locale, ::onProgress).fold({ FlowEvent.Installed }, FlowEvent::InstallFailed)
+                client.applyPackage(file, locale, ::onProgress).fold({ onApplied() }, FlowEvent::InstallFailed)
             }
         }
+    }
+
+    /** pc-installd has copied what it needs: the downloaded file is no longer needed. */
+    private fun onApplied(): FlowEvent {
+        downloadDir.deleteRecursively()
+        return FlowEvent.Installed
     }
 
     fun askRemovePatch(patch: Patch) = on(FlowEvent.PatchRemoveAsked(patch))
