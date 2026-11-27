@@ -60,7 +60,7 @@ int find_live_source(const struct sys_env *env, const struct sys_ops *ops, struc
 	*out = (struct live_source){ 0 };
 	if (read_text(env->cmdline, text, sizeof text) || !parse_live_cmdline(text, out->folder, sizeof out->folder))
 		return -1;
-	if (read_text(env->mountinfo, text, sizeof text) || parse_root_device(text, &major, &minor) || major != LOOP_MAJOR)
+	if (read_lines(env->mountinfo, text, sizeof text) || parse_root_device(text, &major, &minor) || major != LOOP_MAJOR)
 		return -1;
 	snprintf(loop, sizeof loop, "loop%u", minor);
 	if (ops->find_loop_backing(env, loop, &bmajor, &bminor) ||
@@ -261,7 +261,7 @@ int find_running_install(const struct sys_env *env, const struct sys_ops *ops, s
 	if (read_text(env->cmdline, text, sizeof text) || parse_live_cmdline(text, out->folder, sizeof out->folder))
 		return -1;
 	parse_install_id(text, out->id, sizeof out->id);
-	if (read_text(env->mountinfo, text, sizeof text) || find_root_partition(env, ops, text, out->part, sizeof out->part))
+	if (read_lines(env->mountinfo, text, sizeof text) || find_root_partition(env, ops, text, out->part, sizeof out->part))
 		return -1;
 	read_build_file(env->build_prop, &out->build);
 	return 0;

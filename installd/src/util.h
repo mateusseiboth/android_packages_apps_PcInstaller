@@ -2,8 +2,11 @@
 #pragma once
 #include <stddef.h>
 
-/* Reads a small text file without its trailing newline; -1 when missing. */
+/* The first line of a small text file, without its newline (sysfs values, the kernel command line); -1
+ * when missing. */
 int read_text(const char *path, char *out, size_t cap);
+/* The whole file, every line (procfs tables such as mountinfo, which come in several reads). */
+int read_lines(const char *path, char *out, size_t cap);
 int read_u64(const char *path, unsigned long long *out);
 int is_dir(const char *path);
 int is_file(const char *path);

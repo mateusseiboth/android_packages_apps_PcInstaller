@@ -20,6 +20,20 @@ int read_text(const char *path, char *out, size_t cap)
 	return n < 0 ? -1 : 0;
 }
 
+int read_lines(const char *path, char *out, size_t cap)
+{
+	int fd = open(path, O_RDONLY | O_CLOEXEC);
+	if (fd < 0)
+		return -1;
+	size_t len = 0;
+	ssize_t n;
+	while (len < cap - 1 && (n = read(fd, out + len, cap - 1 - len)) > 0)
+		len += (size_t)n;
+	close(fd);
+	out[len] = 0;
+	return 0;
+}
+
 int read_u64(const char *path, unsigned long long *out)
 {
 	char text[32], *end = NULL;
