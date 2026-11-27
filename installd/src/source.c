@@ -12,19 +12,11 @@
 #define LOOP_MAJOR 7
 
 /* mountinfo: ID PARENT MAJOR:MINOR ROOT MOUNTPOINT ...; the last mount on / wins. */
+static int parse_mount_device(const char *mountinfo, const char *mountpoint, unsigned *major, unsigned *minor);
+
 int parse_root_device(const char *mountinfo, unsigned *major, unsigned *minor)
 {
-	int found = -1;
-	for (const char *line = mountinfo; line && *line; line = strchr(line, '\n') ? strchr(line, '\n') + 1 : NULL) {
-		unsigned maj, min;
-		char mountpoint[8];
-		if (sscanf(line, "%*u %*u %u:%u %*s %7s", &maj, &min, mountpoint) != 3 || strcmp(mountpoint, "/"))
-			continue;
-		*major = maj;
-		*minor = min;
-		found = 0;
-	}
-	return found;
+	return parse_mount_device(mountinfo, "/", major, minor);
 }
 
 int parse_live_cmdline(const char *cmdline, char *folder, size_t cap)
@@ -228,13 +220,33 @@ static void parse_install_id(const char *cmdline, char *out, size_t cap)
 			snprintf(out, cap, "%s", w + 6);
 }
 
-/* / is system.img through a loop device, or the system/ folder bound from the partition itself. */
+/* The device mounted on mountpoint in mountinfo; the last mount there wins. */
+static int parse_mount_device(const char *mountinfo, const char *mountpoint, unsigned *major, unsigned *minor)
+{
+	int found = -1;
+	for (const char *line = mountinfo; line && *line; line = strchr(line, '\n') ? strchr(line, '\n') + 1 : NULL) {
+		unsigned maj, min;
+		char point[64];
+		if (sscanf(line, "%*u %*u %u:%u %*s %63s", &maj, &min, point) != 3 || strcmp(point, mountpoint))
+			continue;
+		*major = maj;
+		*minor = min;
+		found = 0;
+	}
+	return found;
+}
+
+/* / is system.img through a loop device, or the system/ folder bound from the partition itself. With patches
+ * or add-ons / is an overlay, which has no disk behind it: /data then tells the partition, since the user data
+ * (userdata/ or data.img) always lives in the install folder too. */
 static int find_root_partition(const struct sys_env *env, const struct sys_ops *ops, const char *mountinfo,
 			       char *out, size_t cap)
 {
 	unsigned major = 0, minor = 0;
 	char loop[32];
 	if (parse_root_device(mountinfo, &major, &minor))
+		return -1;
+	if (major == 0 && parse_mount_device(mountinfo, "/data", &major, &minor))
 		return -1;
 	snprintf(loop, sizeof loop, "loop%u", minor);
 	if (major == LOOP_MAJOR && ops->find_loop_backing(env, loop, &major, &minor))
