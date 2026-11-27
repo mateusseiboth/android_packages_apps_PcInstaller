@@ -82,6 +82,56 @@ enum class InstallStep(val wire: String) {
     }
 }
 
+/** What a package file is: a whole new system, or a patch laid over this one. */
+enum class PackageType(val wire: String) {
+    UPDATE("update"), PATCH("patch"), UNKNOWN("");
+
+    companion object {
+        fun fromWire(wire: String?): PackageType = entries.firstOrNull { it.wire == wire } ?: UNKNOWN
+    }
+}
+
+/** What PACKAGE_INFO read from an update or patch file, next to the running system's build and flavor. */
+data class PackageInfo(
+    val type: PackageType,
+    val version: String,
+    /** Patches only: short id and one line in English. */
+    val name: String,
+    val description: String,
+    /** Updates only: gapps, microg or none. */
+    val flavor: String,
+    /** ro.system.build.date.utc: of the new system (update), or of the only system it applies to (patch). */
+    val build: String,
+    val currentBuild: String,
+    val currentFlavor: String,
+    val hasKernel: Boolean,
+    val hasInitrd: Boolean,
+    val hasSystem: Boolean,
+    val hasOverlay: Boolean,
+    val size: Long,
+) {
+    /** Why this file does not fit the running system, or null; pc-installd checks it again on APPLY_PACKAGE. */
+    fun blockedBy(): InstallError? = MISMATCHES.getValue(type)(this)
+}
+
+/** Unknown values (an empty field) never block: the daemon has the last word. */
+private fun isDifferent(a: String, b: String): Boolean = a.isNotEmpty() && b.isNotEmpty() && a != b
+
+private val MISMATCHES: Map<PackageType, (PackageInfo) -> InstallError?> = mapOf(
+    PackageType.UPDATE to { p -> InstallError.WRONG_FLAVOR.takeIf { isDifferent(p.flavor, p.currentFlavor) } },
+    PackageType.PATCH to { p -> InstallError.WRONG_BASE.takeIf { isDifferent(p.build, p.currentBuild) } },
+    PackageType.UNKNOWN to { InstallError.BAD_PACKAGE },
+)
+
+/** A patch applied to the running system (PATCHES). */
+data class Patch(
+    val name: String,
+    val version: String,
+    val description: String,
+    val replacesKernel: Boolean,
+    val replacesInitrd: Boolean,
+)
+
 /** The daemon's error codes (README, "Errors"), plus the client's own. */
 enum class InstallError(val code: String) {
     BAD_REQUEST("bad_request"),
@@ -113,7 +163,16 @@ enum class InstallError(val code: String) {
     RUNNING_SYSTEM("running_system"),
     NO_UPDATE_SOURCE("no_update_source"),
     IO_ERROR("io_error"),
+    BAD_PACKAGE("bad_package"),
+    BAD_SIGNATURE("bad_signature"),
+    NO_CERTIFICATE("no_certificate"),
+    WRONG_FLAVOR("wrong_flavor"),
+    WRONG_BASE("wrong_base"),
+    NO_ROOM("no_room"),
+    IO("io"),
     DAEMON_UNREACHABLE("daemon_unreachable"),
+    /** The chosen update or patch file could not be opened. */
+    FILE_UNREADABLE("file_unreadable"),
     UNKNOWN("unknown");
 
     companion object {

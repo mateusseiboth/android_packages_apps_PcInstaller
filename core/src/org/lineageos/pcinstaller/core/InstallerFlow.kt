@@ -1,14 +1,14 @@
 package org.lineageos.pcinstaller.core
 
 enum class Screen {
-    WELCOME, LOADING, PARTITIONS, FORMS, SUMMARY, INSTALLING, DONE, REMOVED, FAILED, UPDATE_HOME, UPDATE_FOUND
+    WELCOME, LOADING, PARTITIONS, FORMS, SUMMARY, INSTALLING, DONE, REMOVED, FAILED, UPDATE_HOME, UPDATE_FOUND, PACKAGE
 }
 
 /** The key shim needs to start our GRUB with Secure Boot on: nothing to do, offer it, or queued for MokManager. */
 enum class KeyStep { NONE, NEEDED, QUEUED }
 
 /** What the progress screen is doing. */
-enum class Task { INSTALL, UPDATE, REMOVE }
+enum class Task { INSTALL, UPDATE, REMOVE, APPLY_UPDATE, APPLY_PATCH, REMOVE_PATCH }
 
 data class FlowState(
     val screen: Screen = Screen.WELCOME,
@@ -30,6 +30,10 @@ data class FlowState(
     /** Set once the key is queued: MokManager asks for it on the next start. */
     val keyPassword: String? = null,
     val keyError: InstallError? = null,
+    /** Installed system: the patches applied to it, the file the person chose, and the patch to remove. */
+    val patches: List<Patch> = emptyList(),
+    val packageInfo: PackageInfo? = null,
+    val patchToRemove: Patch? = null,
 ) {
     fun keyStep(): KeyStep = when {
         source?.uefi != true -> KeyStep.NONE
@@ -54,7 +58,8 @@ data class FlowState(
 
 sealed interface FlowEvent {
     data object Start : FlowEvent
-    data class Loaded(val source: SourceInfo, val partitions: List<Partition>) : FlowEvent
+    data class Loaded(val source: SourceInfo, val partitions: List<Partition>, val patches: List<Patch> = emptyList()) :
+        FlowEvent
     data class LoadFailed(val error: InstallError) : FlowEvent
     data class PartitionChosen(val partition: Partition, val state: InstallState) : FlowEvent
     data class InspectFailed(val error: InstallError) : FlowEvent
@@ -75,6 +80,12 @@ sealed interface FlowEvent {
     data object Back : FlowEvent
     data class KeyQueued(val password: String) : FlowEvent
     data class KeyFailed(val error: InstallError) : FlowEvent
+    data class PackageRead(val info: PackageInfo) : FlowEvent
+    data class PackageFailed(val error: InstallError) : FlowEvent
+    data object PackageStarted : FlowEvent
+    data class PatchRemoveAsked(val patch: Patch) : FlowEvent
+    data object PatchRemoveCancelled : FlowEvent
+    data object PatchRemoveStarted : FlowEvent
 }
 
 /** The installer's screens as a pure state machine; the view model runs the daemon calls and feeds events. */
@@ -86,11 +97,16 @@ object InstallerFlow {
         Screen.SUMMARY to Screen.FORMS,
         Screen.FAILED to Screen.WELCOME,
         Screen.UPDATE_FOUND to Screen.UPDATE_HOME,
+        Screen.PACKAGE to Screen.UPDATE_HOME,
     )
-    private val FINISHED = mapOf(Task.INSTALL to Screen.DONE, Task.UPDATE to Screen.DONE, Task.REMOVE to Screen.REMOVED)
+    private val FINISHED = mapOf(
+        Task.INSTALL to Screen.DONE, Task.UPDATE to Screen.DONE, Task.REMOVE to Screen.REMOVED,
+        Task.APPLY_UPDATE to Screen.DONE, Task.APPLY_PATCH to Screen.DONE, Task.REMOVE_PATCH to Screen.DONE,
+    )
+    private val PACKAGE_TASKS = mapOf(PackageType.UPDATE to Task.APPLY_UPDATE, PackageType.PATCH to Task.APPLY_PATCH)
 
     fun reduce(s: FlowState, e: FlowEvent): FlowState = when (e) {
-        FlowEvent.Start -> s.copy(screen = Screen.LOADING, error = null, update = null)
+        FlowEvent.Start -> s.copy(screen = Screen.LOADING, error = null, update = null, packageInfo = null)
         is FlowEvent.Loaded -> onLoaded(s, e)
         is FlowEvent.LoadFailed -> s.copy(screen = Screen.FAILED, error = e.error)
         is FlowEvent.PartitionChosen -> onPartitionChosen(s, e)
@@ -112,6 +128,19 @@ object InstallerFlow {
         FlowEvent.Back -> s.copy(screen = BACK[s.screen] ?: s.screen, error = null)
         is FlowEvent.KeyQueued -> s.copy(keyPassword = e.password, keyError = null)
         is FlowEvent.KeyFailed -> s.copy(keyError = e.error)
+        is FlowEvent.PackageRead -> s.copy(screen = Screen.PACKAGE, packageInfo = e.info, error = null)
+        is FlowEvent.PackageFailed -> s.copy(screen = Screen.UPDATE_HOME, packageInfo = null, error = e.error)
+        FlowEvent.PackageStarted -> onPackageStarted(s)
+        is FlowEvent.PatchRemoveAsked -> s.copy(patchToRemove = e.patch)
+        FlowEvent.PatchRemoveCancelled -> s.copy(patchToRemove = null)
+        FlowEvent.PatchRemoveStarted -> startTask(s, Task.REMOVE_PATCH)
+    }
+
+    /** A file that does not fit the running system never starts. */
+    private fun onPackageStarted(s: FlowState): FlowState {
+        val info = s.packageInfo ?: return s
+        if (info.blockedBy() != null) return s
+        return startTask(s, PACKAGE_TASKS.getValue(info.type))
     }
 
     private fun findTask(s: FlowState): Task = when {
@@ -120,7 +149,8 @@ object InstallerFlow {
     }
 
     private fun startTask(s: FlowState, task: Task) = s.copy(
-        screen = Screen.INSTALLING, task = task, isConfirmingUninstall = false, step = InstallStep.PREPARE, percent = 0,
+        screen = Screen.INSTALLING, task = task, isConfirmingUninstall = false, patchToRemove = null,
+        step = InstallStep.PREPARE, percent = 0,
     )
 
     /** The live USB drive installs; an installed system updates from one; anything else cannot go on. */
@@ -133,7 +163,7 @@ object InstallerFlow {
     private fun onLoaded(s: FlowState, e: FlowEvent.Loaded): FlowState {
         val screen = findLoadedScreen(e.source)
         val error = InstallError.SOURCE_MISSING.takeIf { screen == Screen.FAILED }
-        return s.copy(source = e.source, partitions = e.partitions, screen = screen, error = error)
+        return s.copy(source = e.source, partitions = e.partitions, patches = e.patches, screen = screen, error = error)
     }
 
     private fun onPartitionChosen(s: FlowState, e: FlowEvent.PartitionChosen): FlowState {
