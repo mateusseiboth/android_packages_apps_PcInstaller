@@ -8,7 +8,7 @@ enum class Screen {
 enum class KeyStep { NONE, NEEDED, QUEUED }
 
 /** What the progress screen is doing. */
-enum class Task { INSTALL, UPDATE, REMOVE, APPLY_UPDATE, APPLY_PATCH, REMOVE_PATCH }
+enum class Task { INSTALL, UPDATE, REMOVE, APPLY_UPDATE, APPLY_PATCH, REMOVE_PATCH, DOWNLOAD }
 
 data class FlowState(
     val screen: Screen = Screen.WELCOME,
@@ -34,6 +34,9 @@ data class FlowState(
     val patches: List<Patch> = emptyList(),
     val packageInfo: PackageInfo? = null,
     val patchToRemove: Patch? = null,
+    /** Installed system: its build and edition, and what the online list offers (null until checked). */
+    val running: RunningBuild? = null,
+    val offer: Offer? = null,
 ) {
     fun keyStep(): KeyStep = when {
         source?.uefi != true -> KeyStep.NONE
@@ -58,8 +61,12 @@ data class FlowState(
 
 sealed interface FlowEvent {
     data object Start : FlowEvent
-    data class Loaded(val source: SourceInfo, val partitions: List<Partition>, val patches: List<Patch> = emptyList()) :
-        FlowEvent
+    data class Loaded(
+        val source: SourceInfo,
+        val partitions: List<Partition>,
+        val patches: List<Patch> = emptyList(),
+        val running: RunningBuild? = null,
+    ) : FlowEvent
     data class LoadFailed(val error: InstallError) : FlowEvent
     data class PartitionChosen(val partition: Partition, val state: InstallState) : FlowEvent
     data class InspectFailed(val error: InstallError) : FlowEvent
@@ -86,6 +93,10 @@ sealed interface FlowEvent {
     data class PatchRemoveAsked(val patch: Patch) : FlowEvent
     data object PatchRemoveCancelled : FlowEvent
     data object PatchRemoveStarted : FlowEvent
+    data class OfferFound(val offer: Offer) : FlowEvent
+    data class OfferFailed(val error: InstallError) : FlowEvent
+    data object DownloadStarted : FlowEvent
+    data class DownloadFailed(val error: InstallError) : FlowEvent
 }
 
 /** The installer's screens as a pure state machine; the view model runs the daemon calls and feeds events. */
@@ -134,6 +145,11 @@ object InstallerFlow {
         is FlowEvent.PatchRemoveAsked -> s.copy(patchToRemove = e.patch)
         FlowEvent.PatchRemoveCancelled -> s.copy(patchToRemove = null)
         FlowEvent.PatchRemoveStarted -> startTask(s, Task.REMOVE_PATCH)
+        is FlowEvent.OfferFound -> s.copy(offer = e.offer, error = null)
+        is FlowEvent.OfferFailed -> s.copy(offer = null, error = e.error)
+        // A download ends in PackageRead (the package screen) or DownloadFailed, never in Installed.
+        FlowEvent.DownloadStarted -> startTask(s.copy(error = null), Task.DOWNLOAD)
+        is FlowEvent.DownloadFailed -> s.copy(screen = Screen.UPDATE_HOME, error = e.error)
     }
 
     /** A file that does not fit the running system never starts. */
@@ -163,7 +179,8 @@ object InstallerFlow {
     private fun onLoaded(s: FlowState, e: FlowEvent.Loaded): FlowState {
         val screen = findLoadedScreen(e.source)
         val error = InstallError.SOURCE_MISSING.takeIf { screen == Screen.FAILED }
-        return s.copy(source = e.source, partitions = e.partitions, patches = e.patches, screen = screen, error = error)
+        return s.copy(source = e.source, partitions = e.partitions, patches = e.patches, running = e.running, offer = null,
+            screen = screen, error = error)
     }
 
     private fun onPartitionChosen(s: FlowState, e: FlowEvent.PartitionChosen): FlowState {
