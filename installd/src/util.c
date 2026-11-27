@@ -56,6 +56,21 @@ int make_dirs(const char *path, unsigned mode)
 	return mkdir(buf, mode) && errno != EEXIST ? -1 : 0;
 }
 
+int write_all(int fd, const void *buf, size_t len)
+{
+	const char *p = buf;
+	while (len) {
+		ssize_t n = write(fd, p, len);
+		if (n < 0 && errno == EINTR)
+			continue;
+		if (n <= 0)
+			return -1;
+		p += n;
+		len -= (size_t)n;
+	}
+	return 0;
+}
+
 int save_text_file(const char *path, const char *text)
 {
 	char tmp[PATH_MAX];

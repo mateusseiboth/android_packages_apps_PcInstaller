@@ -9,6 +9,8 @@ int is_dir(const char *path);
 int is_file(const char *path);
 /* Writes text to path.tmp, then renames it over path. */
 int save_text_file(const char *path, const char *text);
+/* write() until done; -1 on an error (errno set). */
+int write_all(int fd, const void *buf, size_t len);
 /* mkdir -p */
 int make_dirs(const char *path, unsigned mode);
 /* A whole small file (at most max bytes) into a malloc'd buffer; -1 when missing or larger. */

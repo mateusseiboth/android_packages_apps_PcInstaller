@@ -22,3 +22,5 @@ typedef void (*reply_fn)(void *ctx, const char *line);
 
 void server_init(struct server *s, const struct sys_env *env, const struct sys_ops *ops);
 void handle_line(struct server *s, const char *line, reply_fn reply, void *ctx);
+/* fd: the file descriptor that came with the line (SCM_RIGHTS), or -1; the caller closes it. */
+void handle_line_with_fd(struct server *s, const char *line, int fd, reply_fn reply, void *ctx);

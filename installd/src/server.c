@@ -8,11 +8,13 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "apply.h"
 #include "biosboot.h"
 #include "disks.h"
 #include "efiboot.h"
 #include "install.h"
 #include "mok.h"
+#include "package.h"
 #include "plan.h"
 #include "proto.h"
 #include "util.h"
@@ -22,6 +24,8 @@ struct request {
 	const struct msg *m;
 	reply_fn reply;
 	void *ctx;
+	int fd;          /* the package a request carries, or -1 */
+	struct line *ok; /* the closing OK line, which some requests give fields */
 };
 
 void server_init(struct server *s, const struct sys_env *env, const struct sys_ops *ops)
@@ -32,13 +36,6 @@ void server_init(struct server *s, const struct sys_env *env, const struct sys_o
 /* ---- replies -------------------------------------------------------------------------- */
 
 static void send_line(const struct request *q, struct line *l) { q->reply(q->ctx, line_end(l)); }
-
-static void send_word(const struct request *q, const char *word)
-{
-	struct line l;
-	line_begin(&l, word);
-	send_line(q, &l);
-}
 
 static void send_error(const struct request *q, const char *code)
 {
@@ -459,6 +456,156 @@ static const char *handle_enroll_key(const struct request *q)
 	return NULL;
 }
 
+/* ---- updates and patches for the running install (docs/UPDATES.md in the device tree) --- */
+
+#define CERT_PATH "EFI/LineageOS/" KEY_FILE
+
+static const char *open_running(const struct request *q, struct apply_job *job)
+{
+	struct server *s = q->s;
+	if (ensure_running(s))
+		return "not_installed";
+	if (!s->count)
+		refresh_partitions(s);
+	const struct partition *target = find_partition(s->parts, s->count, s->running.part);
+	if (!target)
+		return "not_installed";
+	*job = (struct apply_job){ .env = s->env, .ops = s->ops, .target = target, .parts = s->parts,
+				   .count = s->count, .folder = s->running.folder, .id = s->running.id, .locale = "",
+				   .current_build = s->running.build.build };
+	return NULL;
+}
+
+/* The builder's certificate that the installer put on the ESP next to GRUB (efifiles.c). */
+static int load_certificate(struct server *s, const struct partition *target, unsigned char **der, size_t *len)
+{
+	const struct partition *esp = find_esp(s->parts, s->count, target);
+	char dev[PATH_MAX], dir[PATH_MAX / 2], path[PATH_MAX];
+	if (!esp)
+		return -1;
+	snprintf(dev, sizeof dev, "%s/%s", s->env->dev_dir, esp->name);
+	snprintf(dir, sizeof dir, "%s/esp", s->env->work);
+	make_dirs(dir, 0700);
+	if (s->ops->mount(s->env, dev, dir, find_mount_type(esp->fs), 1))
+		return -1;
+	snprintf(path, sizeof path, "%s/" CERT_PATH, dir);
+	int failed = load_file(path, MAX_KEY_BYTES, der, len);
+	s->ops->umount(s->env, dir);
+	return failed;
+}
+
+static const char *open_request_package(const struct request *q, struct apply_job *job, struct package *pkg)
+{
+	unsigned char *der = NULL;
+	size_t len = 0;
+	const char *error = q->fd < 0 ? "bad_request" : open_running(q, job);
+	if (error)
+		return error;
+	if (load_certificate(q->s, job->target, &der, &len))
+		return "no_certificate";
+	error = open_package(pkg, q->fd, der, len);
+	free(der);
+	return error;
+}
+
+static const char *check_members(struct package *pkg)
+{
+	const struct manifest_file *file;
+	const char *error = NULL;
+	while (!error && pkg->next < pkg->manifest.count)
+		error = read_package_member(pkg, &file, NULL, NULL);
+	return error ? error : finish_package(pkg);
+}
+
+static void add_package_fields(struct line *l, const struct manifest *m, const struct apply_job *job)
+{
+	static const char *const ROLES[] = { "kernel", "initrd", "system", "overlay" };
+	line_add(l, "type", m->type);
+	line_add(l, "version", m->version);
+	line_add(l, "name", m->name);
+	line_add(l, "description", m->description);
+	line_add(l, "flavor", m->flavor);
+	line_add(l, "build", m->build);
+	line_add(l, "current_build", job->current_build);
+	line_add(l, "current_flavor", job->current_flavor);
+	for (size_t i = 0; i < sizeof ROLES / sizeof *ROLES; i++)
+		line_add_u64(l, ROLES[i], find_manifest_file(m, ROLES[i]) != NULL);
+	line_add_u64(l, "size", measure_package(m));
+}
+
+/* Reads the whole package to check every hash; writes nothing. */
+static const char *handle_package_info(const struct request *q)
+{
+	struct apply_job job;
+	struct package pkg = { 0 };
+	const char *error = open_request_package(q, &job, &pkg);
+	error = error ? error : check_members(&pkg);
+	if (!error) {
+		job.current_flavor = find_running_flavor(q->s->env);
+		add_package_fields(q->ok, &pkg.manifest, &job);
+	}
+	close_package(&pkg);
+	return error;
+}
+
+static int is_valid_locale(const char *locale)
+{
+	size_t n = strspn(locale, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_");
+	return !locale[n] && n < 32;
+}
+
+static const char *handle_apply_package(const struct request *q)
+{
+	struct apply_job job;
+	struct package pkg = { 0 };
+	const char *locale = find_field(q->m, "locale") ? find_field(q->m, "locale") : "";
+	const char *error = is_valid_locale(locale) ? open_request_package(q, &job, &pkg) : "bad_request";
+	if (!error) {
+		job.locale = locale;
+		job.current_flavor = find_running_flavor(q->s->env);
+		run_apply(&job, &pkg, on_progress, (void *)q, &error);
+		q->s->count = 0; /* free space changed */
+	}
+	close_package(&pkg);
+	if (!error)
+		line_add_u64(q->ok, "reboot", 1);
+	return error;
+}
+
+static void send_patch(void *ctx, const struct manifest *patch)
+{
+	const struct request *q = ctx;
+	struct line l;
+	line_begin(&l, "PATCH");
+	line_add(&l, "name", patch->name);
+	line_add(&l, "version", patch->version);
+	line_add(&l, "description", patch->description);
+	line_add_u64(&l, "kernel", find_manifest_file(patch, "kernel") != NULL);
+	line_add_u64(&l, "initrd", find_manifest_file(patch, "initrd") != NULL);
+	send_line(q, &l);
+}
+
+static const char *handle_patches(const struct request *q)
+{
+	struct apply_job job;
+	const char *error = open_running(q, &job);
+	if (error)
+		return error;
+	return list_patches(&job, send_patch, (void *)q) ? "mount_failed" : NULL;
+}
+
+static const char *handle_remove_patch(const struct request *q)
+{
+	struct apply_job job;
+	const char *name = find_field(q->m, "name");
+	const char *error = name && is_valid_patch_name(name) ? open_running(q, &job) : "bad_request";
+	if (!error)
+		run_remove_patch(&job, name, &error);
+	if (!error)
+		line_add_u64(q->ok, "reboot", 1);
+	return error;
+}
+
 /* ---- dispatch ------------------------------------------------------------------------- */
 
 static const struct {
@@ -468,6 +615,8 @@ static const struct {
 	{ "INFO", handle_info },	 { "LIST", handle_list },	    { "INSPECT", handle_inspect },
 	{ "CHECK", handle_check },	 { "INSTALL", handle_install },	    { "UNINSTALL", handle_uninstall },
 	{ "FIND_UPDATE", handle_find_update }, { "ENROLL_KEY", handle_enroll_key },
+	{ "PACKAGE_INFO", handle_package_info }, { "APPLY_PACKAGE", handle_apply_package },
+	{ "PATCHES", handle_patches },	 { "REMOVE_PATCH", handle_remove_patch },
 };
 
 static const char *dispatch(const struct request *q)
@@ -478,14 +627,21 @@ static const char *dispatch(const struct request *q)
 	return "bad_request";
 }
 
-void handle_line(struct server *s, const char *line, reply_fn reply, void *ctx)
+void handle_line_with_fd(struct server *s, const char *line, int fd, reply_fn reply, void *ctx)
 {
 	struct msg m;
-	struct request q = { s, &m, reply, ctx };
+	struct line ok;
+	struct request q = { s, &m, reply, ctx, fd, &ok };
+	line_begin(&ok, "OK");
 	const char *error = parse_msg(line, &m) ? "bad_request" : dispatch(&q);
 	if (error) {
 		send_error(&q, error);
 		return;
 	}
-	send_word(&q, "OK");
+	send_line(&q, &ok);
+}
+
+void handle_line(struct server *s, const char *line, reply_fn reply, void *ctx)
+{
+	handle_line_with_fd(s, line, -1, reply, ctx);
 }

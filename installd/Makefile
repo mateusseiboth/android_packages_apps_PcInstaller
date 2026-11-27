@@ -5,6 +5,7 @@
 CC ?= cc
 CFLAGS ?= -O1 -g -Wall -Wextra -Werror -std=gnu11
 CFLAGS += -Isrc
+LDLIBS += -lcrypto -ldl
 BUILD := build
 CORE := $(filter-out src/main.c,$(wildcard src/*.c))
 TESTS := $(patsubst tests/%.c,$(BUILD)/%,$(wildcard tests/test_*.c))
@@ -15,10 +16,10 @@ $(BUILD):
 	mkdir -p $@
 
 $(BUILD)/pc-installd: src/main.c $(CORE) $(wildcard src/*.h) | $(BUILD)
-	$(CC) $(CFLAGS) -o $@ src/main.c $(CORE)
+	$(CC) $(CFLAGS) -o $@ src/main.c $(CORE) $(LDLIBS)
 
 $(BUILD)/test_%: tests/test_%.c $(CORE) $(wildcard src/*.h) tests/check.h | $(BUILD)
-	$(CC) $(CFLAGS) -o $@ $< $(CORE)
+	$(CC) $(CFLAGS) -o $@ $< $(CORE) $(LDLIBS)
 
 test: $(TESTS) $(BUILD)/pc-installd
 	@set -e; for t in $(TESTS); do echo "== $$t"; $$t; done

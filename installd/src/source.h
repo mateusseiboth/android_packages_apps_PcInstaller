@@ -21,6 +21,7 @@ struct live_source {
 struct build_info {
 	unsigned long long utc; /* ro.build.date.utc */
 	char version[96];       /* ro.lineage.display.version, else ro.build.display.id */
+	char build[24];         /* ro.system.build.date.utc: the build updates and patches name */
 };
 
 /* The install an installed system was started from (pc.src, pc.id, and the partition behind /). */
@@ -42,6 +43,9 @@ int find_live_source(const struct sys_env *env, const struct sys_ops *ops, struc
 /* Mounts the source and measures what an install copies (kernel, initrd.img, system.img, GRUB, shim,
  * MokManager, the key); -1 if one is missing. */
 int mount_live_source(const struct sys_env *env, const struct sys_ops *ops, struct live_source *s);
+/* gapps (the Play Store), microg (microG's GmsCore without it) or none, from the running system's files:
+ * the add-ons that bring or hide them are laid over it. */
+const char *find_running_flavor(const struct sys_env *env);
 /* 0 on an installed (not live) system. */
 int find_running_install(const struct sys_env *env, const struct sys_ops *ops, struct running_install *out);
 /* A live USB drive among parts (skipping the install's own partition), left mounted as the source. */

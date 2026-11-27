@@ -175,6 +175,7 @@ void parse_build_prop(const char *text, struct build_info *out)
 	out->utc = strtoull(utc, NULL, 10);
 	read_prop(text, "ro.build.display.id", out->version, sizeof out->version);
 	read_prop(text, "ro.lineage.display.version", out->version, sizeof out->version);
+	read_prop(text, "ro.system.build.date.utc", out->build, sizeof out->build);
 }
 
 static int read_build_file(const char *path, struct build_info *out)
@@ -187,6 +188,32 @@ static int read_build_file(const char *path, struct build_info *out)
 		fclose(f);
 	parse_build_prop(text, out);
 	return f ? 0 : -1;
+}
+
+/* ---- the running system's flavor ------------------------------------------------------ */
+
+/* Relative to the system root (where build.prop is); product and system_ext live inside it. microG's
+ * FakeStore also answers to com.android.vending, so the Play Store is told by its own folder. */
+static const struct {
+	const char *dir;
+	const char *flavor;
+} FLAVOR_MARKS[] = {
+	{ "product/priv-app/Phonesky", "gapps" },  { "system_ext/priv-app/Phonesky", "gapps" },
+	{ "priv-app/Phonesky", "gapps" },	   { "product/priv-app/GmsCore", "microg" },
+	{ "system_ext/priv-app/GmsCore", "microg" }, { "priv-app/GmsCore", "microg" },
+};
+
+const char *find_running_flavor(const struct sys_env *env)
+{
+	char root[PATH_MAX], path[PATH_MAX * 2];
+	snprintf(root, sizeof root, "%s", env->build_prop);
+	*(strrchr(root, '/') ? strrchr(root, '/') : root) = 0;
+	for (size_t i = 0; i < sizeof FLAVOR_MARKS / sizeof *FLAVOR_MARKS; i++) {
+		snprintf(path, sizeof path, "%s/%s", root, FLAVOR_MARKS[i].dir);
+		if (is_dir(path))
+			return FLAVOR_MARKS[i].flavor;
+	}
+	return "none";
 }
 
 /* ---- an installed system -------------------------------------------------------------- */

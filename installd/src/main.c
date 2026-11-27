@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/uio.h>
 #include <sys/un.h>
 #include <unistd.h>
 
@@ -40,23 +41,62 @@ static int is_trusted_peer(int fd)
 	return is_trusted_uid(cred.uid) || cred.uid == getuid();
 }
 
+#define MAX_PASSED_FDS 4
+
+static void replace_fd(int *pending, int fd)
+{
+	if (*pending >= 0)
+		close(*pending);
+	*pending = fd;
+}
+
+/* A package's descriptor comes with its command line (SCM_RIGHTS on the same sendmsg). */
+static void take_fds(struct msghdr *mh, int *pending)
+{
+	for (struct cmsghdr *c = CMSG_FIRSTHDR(mh); c; c = CMSG_NXTHDR(mh, c)) {
+		if (c->cmsg_level != SOL_SOCKET || c->cmsg_type != SCM_RIGHTS)
+			continue;
+		size_t count = (c->cmsg_len - CMSG_LEN(0)) / sizeof(int);
+		for (size_t i = 0; i < count; i++) {
+			int fd;
+			memcpy(&fd, CMSG_DATA(c) + i * sizeof fd, sizeof fd);
+			replace_fd(pending, fd);
+		}
+	}
+}
+
+static ssize_t receive(int fd, char *buf, size_t len, int *pending)
+{
+	char control[CMSG_SPACE(sizeof(int) * MAX_PASSED_FDS)];
+	struct iovec iov = { buf, len };
+	struct msghdr mh = { .msg_iov = &iov, .msg_iovlen = 1, .msg_control = control, .msg_controllen = sizeof control };
+	ssize_t n = recvmsg(fd, &mh, MSG_CMSG_CLOEXEC);
+	if (n >= 0)
+		take_fds(&mh, pending);
+	return n;
+}
+
+/* The descriptor that came with a line belongs to that command and is closed after it. */
 static void serve_client(struct server *s, int fd)
 {
 	char buf[LINE_MAX_LEN];
 	size_t len = 0;
 	ssize_t n;
-	while ((n = recv(fd, buf + len, sizeof buf - 1 - len, 0)) > 0) {
+	int pending = -1;
+	while ((n = receive(fd, buf + len, sizeof buf - 1 - len, &pending)) > 0) {
 		len += (size_t)n;
 		buf[len] = 0;
 		char *nl;
 		while ((nl = strchr(buf, '\n'))) {
 			*nl = 0;
-			handle_line(s, buf, send_reply, &fd);
+			handle_line_with_fd(s, buf, pending, send_reply, &fd);
+			replace_fd(&pending, -1);
 			len -= (size_t)(nl + 1 - buf);
 			memmove(buf, nl + 1, len + 1);
 		}
 		len = len == sizeof buf - 1 ? 0 : len; /* drop an overlong line */
 	}
+	replace_fd(&pending, -1);
 }
 
 static int serve(int listener, struct server *s)
@@ -146,7 +186,7 @@ static int print_cmdline(int argc, char **argv)
 static int print_grub_entry(int argc, char **argv)
 {
 	char entry[8192];
-	struct entry_params p = { argv[2], argv[3], argv[4], argc > 5 && !strcmp(argv[5], "previous") };
+	struct entry_params p = { argv[2], argv[3], argv[4], argc > 5 && !strcmp(argv[5], "previous") ? PREVIOUS_SYSTEM : 0 };
 	if (build_install_entry(entry, sizeof entry, &p))
 		return 1;
 	fputs(entry, stdout);

@@ -13,5 +13,8 @@ cc_binary {
         "-Wextra",
         "-Werror",
     ],
+    // BoringSSL: the update packages' signature and hashes (src/pkgsig.c). libzstd is dlopen'ed
+    // (src/unzstd.c): external/zstd does not make it visible to this package.
+    shared_libs: ["libcrypto"],
     init_rc: ["pc-installd.rc"],
 }
