@@ -45,6 +45,10 @@ the device tree only adds both to `PRODUCT_PACKAGES`.
     data.img    or  userdata/    sparse ext4 image of the chosen size, or a folder (Linux file systems only)
     install-<id>.id              random id, kept by updates; GRUB and pc-init (pc.id=<id>) find the folder by it
     system.old.img / system.old/ the previous system, after an update
+    kernel.old, initrd.old.img   the kernel and initrd before the last update or kernel patch
+    system.new.img / system.new/ an update from a package, staged; pc-init puts it in place on the next boot
+    update-locale                the app's language for pc-init's update screen
+    patches/NAME.img, NAME.json  a patch's overlay image and manifest (plus replaced_kernel/replaced_initrd)
 
 UEFI
 <ESP>/EFI/LineageOS/shimx64.efi  shim, signed by Microsoft (from the live ISO)
@@ -65,7 +69,7 @@ core.img                         in the GPT BIOS boot partition, else the free s
 
 Every menu directory (EFI/LineageOS, pc-grub)
     entries/<id>.cfg             one per install: its entry plus a submenu with safe graphics (nomodeset)
-                                 and the previous system (pc.previous=1)
+                                 and the previous system (pc.previous=1, with kernel.old/initrd.old.img when kept)
     grub.cfg                     rebuilt from all entries + the other systems found + (UEFI) firmware settings
 ```
 
@@ -94,7 +98,22 @@ partition. Only a disk whose first partition starts at sector 63 (or a disk with
 cannot boot from) is refused (`no_boot_room`).
 
 An update removes `system.old*`, renames the system to `system.old*`, writes the new one and puts the old one
-back if that fails. A removal deletes only the files an install writes; other files in the folder stay.
+back if that fails. It keeps the kernel and initrd it replaces as `kernel.old`/`initrd.old.img` (a new install
+drops stale ones), and both drop the patches and any staged update. A removal deletes only the files an install
+writes; other files in the folder stay.
+
+**Update and patch packages** (format: `device/pc/pc_x86_64/docs/UPDATES.md`). pc-installd reads the package
+strictly front to back from the descriptor the app passes (a pipe works): `manifest.json`, `manifest.sig`
+(RSA-SHA256 checked against `EFI/LineageOS/ENROLL_THIS_KEY_IN_MOKMANAGER.der` on the ESP of the install's disk,
+else the first ESP), then each listed file, whose size and sha256 are checked as it streams. Every file is
+written as `*.tmp` and renamed only once the whole package checked out; images are decompressed (zstd) as they
+arrive, zero blocks left as holes, and checked against `image_sha256`. An update becomes `system.new.img`, or for
+an extracted install the image's files copied into `system.new/` (through a read-only loop mount); a patch
+becomes `patches/NAME.img` and `NAME.json`. A new kernel or initrd moves the current one to `kernel.old`/
+`initrd.old.img` (a second kernel patch keeps the first one's `kernel.old`), and the install's GRUB entry is
+rewritten. The flavor comes from the running system's files: `priv-app/Phonesky` (the Play Store) is `gapps`,
+`priv-app/GmsCore` without it is `microg`, otherwise `none` (microG's FakeStore also calls itself
+`com.android.vending`).
 
 The kernel command line is the live ISO's `kernel_cmdline()` (`build_iso.py`) plus `pc.id=<id>`:
 `androidboot.hardware=pc androidboot.selinux=permissive firmware_class.path=/vendor/firmware console=tty0
@@ -161,11 +180,15 @@ data lines, then `OK` or `ERR code=<error>`.
 | `ENROLL_KEY` | `MOK password=<8 digits>` | queues the source's key for MokManager (`source_missing` without it, `efi_failed` when the variables cannot be written) |
 | `PACKAGE_INFO` (+fd) | none: `OK type= version= name= description= flavor= build= current_build= current_flavor= kernel= initrd= system= overlay= size=` | installed system: reads an update or patch file; the app also refuses an update of another flavor and a patch whose `build` is not `current_build` |
 | `APPLY_PACKAGE locale=` (+fd) | `PROGRESS step= percent=`, then `OK reboot=1` | stages the update (next boot) or applies the patch |
-| `PATCHES` | `PATCH name= version= description= kernel= initrd=` | the applied patches |
-| `REMOVE_PATCH name=` | none: `OK reboot=1` | removes a patch on the next boot |
+| `PATCHES` | `PATCH name= version= description= kernel= initrd=` | the applied patches, in name order |
+| `REMOVE_PATCH name=` | none: `OK reboot=1` | deletes the patch (it stops at the next boot) and puts back `kernel.old`/`initrd.old.img` when it replaced them and no other patch did; `bad_request` for an unknown name |
 
-`(+fd)`: the package's file descriptor travels with the line (`SCM_RIGHTS`). The four package commands are
-specified in `device/pc/pc_x86_64/docs/UPDATES.md`; the app also accepts `ERROR code=` as an error line.
+`(+fd)`: the package's file descriptor travels with the line (`SCM_RIGHTS`); pc-installd closes it after the
+command. The four package commands are specified in `device/pc/pc_x86_64/docs/UPDATES.md`; pc-installd answers
+errors with `ERR code=` like every other command (the app also accepts `ERROR code=`). `PACKAGE_INFO` reads the
+whole package to check every hash and writes nothing; its `size` is what the package writes (images
+decompressed, kernel, initrd). `APPLY_PACKAGE` checks the room first (`no_room`) and reports the steps
+`prepare`, `kernel`, `system`, `boot`, `finish`.
 
 ### Errors
 
@@ -181,7 +204,7 @@ picked file cannot be opened). Each has a one or two sentence text in
 ## Tests
 
 ```sh
-make -C installd test          # 136 C tests (fake sysfs/dev/efivars machine) + socket and cmdline tests (Python)
+make -C installd test          # 138 C tests (fake sysfs/dev/efivars machine) + socket and cmdline tests (Python)
 core/run_tests.sh              # 44 JUnit tests of the app core, with external/kotlinc and JUnit from prebuilts
 python3 -m unittest discover -s tests   # UI strings: both languages, placeholders, no em dash
 tools/typecheck.sh             # compiles core + Compose UI against the prebuilts (needs a previous build's out/)
@@ -198,6 +221,8 @@ time. In Soong: `PcInstallerCoreTests` (`java_test_host`, `atest`-able).
 - local manifest: `<project path="packages/apps/PcInstaller" name="android_packages_apps_PcInstaller" remote="pc" revision="lineage-24.0" />`
 - `device.mk`: `PRODUCT_PACKAGES += PcInstaller pc-installd`
 - `BoardConfig.mk`: `SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += packages/apps/PcInstaller/installd/sepolicy/private`
+- `pc-installd` links BoringSSL's `libcrypto` (OpenSSL's `-lcrypto` on the host) and loads the platform's
+  `libzstd.so` with `dlopen`: external/zstd's `Android.bp` does not make the library visible to this package
 - the device tree's `iso/build_iso.py` puts `grubx64.efi`, `shimx64.efi`, `mmx64.efi`,
   `ENROLL_THIS_KEY_IN_MOKMANAGER.der`, `grub-pc/` and `install-live.id` on the ISO
 
