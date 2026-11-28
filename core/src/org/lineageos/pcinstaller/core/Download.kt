@@ -16,7 +16,8 @@ data class DownloadProgress(
     val percent: Int get() = (fraction * 100).toInt()
 
     /** null while the speed or the size is unknown. */
-    val secondsLeft: Long? get() = ((total - done).coerceAtLeast(0) / bytesPerSecond).takeIf { bytesPerSecond > 0 && total > 0 }
+    val secondsLeft: Long? get() =
+        if (bytesPerSecond > 0 && total > 0) (total - done).coerceAtLeast(0) / bytesPerSecond else null
 }
 
 /**
