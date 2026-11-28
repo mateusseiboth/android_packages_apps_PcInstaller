@@ -206,7 +206,8 @@ const struct partition *find_esp(const struct partition *parts, int count, const
 {
 	const struct partition *first = NULL;
 	for (int i = 0; i < count; i++) {
-		if (!parts[i].is_esp)
+		/* The live drive's ESP leaves with the drive: GRUB and the update key never go there. */
+		if (!parts[i].is_esp || parts[i].is_source)
 			continue;
 		if (!strcmp(parts[i].disk, target->disk))
 			return &parts[i];

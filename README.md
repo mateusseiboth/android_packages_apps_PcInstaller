@@ -128,7 +128,7 @@ writes; other files in the folder stay.
 **Update and patch packages** (format: `device/pc/pc_x86_64/docs/UPDATES.md`). pc-installd reads the package
 strictly front to back from the descriptor the app passes (a pipe works): `manifest.json`, `manifest.sig`
 (RSA-SHA256 checked against `EFI/LineageOS/ENROLL_THIS_KEY_IN_MOKMANAGER.der` on the ESP of the install's disk,
-else the first ESP), then each listed file, whose size and sha256 are checked as it streams. Every file is
+else the first ESP that is not on the live USB drive), then each listed file, whose size and sha256 are checked as it streams. Every file is
 written as `*.tmp` and renamed only once the whole package checked out; images are decompressed (zstd) as they
 arrive, zero blocks left as holes, and checked against `image_sha256`. An update becomes `system.new.img`, or for
 an extracted install the image's files copied into `system.new/` (through a read-only loop mount); a patch
