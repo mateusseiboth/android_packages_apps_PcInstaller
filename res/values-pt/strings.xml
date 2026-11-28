@@ -71,7 +71,7 @@
     <string name="error_fs_images_only">Em NTFS, exFAT e FAT32 só é possível usar arquivos de imagem.</string>
     <string name="error_file_too_large">Em FAT32 cada arquivo precisa ter menos de 4 GB. Escolha menos espaço para dados.</string>
     <string name="error_data_too_small">O espaço para dados precisa ter pelo menos 2 GB.</string>
-    <string name="error_no_esp">Nenhuma partição EFI foi encontrada. Instale num disco que tenha uma.</string>
+    <string name="error_no_esp">Este disco não tem partição EFI, então não consegue ligar em modo UEFI. Reinicie o computador pelo pendrive em modo Legacy (BIOS) e instale de novo.</string>
     <string name="error_source_missing">Abra o instalador a partir do pendrive do LineageOS.</string>
     <string name="error_unknown_partition">A partição não foi encontrada. Tente de novo.</string>
     <string name="error_mount_failed">Não foi possível abrir a partição. Se ela for do Windows, desative a inicialização rápida, desligue o Windows e tente de novo.</string>
